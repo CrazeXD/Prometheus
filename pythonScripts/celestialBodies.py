@@ -5,6 +5,7 @@ in the calculation.
 Created on 16. September 2022 by Andrea Gebek.
 """
 
+import pathlib
 import pythonScripts.constants as const
 import pythonScripts.geometryHandler as geom
 import numpy as np
@@ -14,6 +15,7 @@ from contextlib import closing
 import astropy.io.fits as fits
 import os
 from scipy.interpolate import interp1d
+import csv
 
 
 
@@ -310,16 +312,37 @@ class Moon:
 
 class AvailablePlanets:
     def __init__(self):
-        WASP49a = Star(1.038 * const.R_sun, 1.003 * const.M_sun,  5600., 4.5, -0.08, 0.) # Wyttenbach et al. 2017, Metallicity from Sousa et al. 2018, Alpha-enhancement unknown
-        WASP49b = Planet('WASP-49b', 1.198 * const.R_J, 0.399 * const.M_J, 0.03873 * const.AU, hostStar = WASP49a) # Wyttenbach et al. 2017
-        HD189733a = Star(0.756 * const.R_sun, 0.823 * const.M_sun, 5201., 4.64, -0.02, 0.) # Wyttenbach et al. 2015, T_eff, log_g, and Metallicity from Chavero et al. 2019, Alpha-enhancement unknown
-        HD189733b = Planet('HD189733b', 1.138 * const.R_J, 1.138 * const.M_J, 0.0312 * const.AU, hostStar = HD189733a) # Wyttenbach et al. 2015
-        Cancri55a = Star(0.98 * const.R_sun, 1.015 * const.M_sun, 5172., 4.43, 0.35, 0.) # Crida et al. 2018, a_p, T_eff, log_g, and Metallcity from Bourrier et al. 2018, Alpha-enhancement unknown) 
-        Cancri55e = Planet('55-Cancri-e', 0.1737 * const.R_J, 0.02703 * const.M_J, 0.01544 * const.AU, hostStar = Cancri55a) # Crida et al. 2018
-        WASP39a = Star(0.895 * const.R_sun, 0.93 * const.M_sun,  5400., 4.503, -0.12, 0.) # Faedi et al. 2018, Alpha-enhancement unknown
-        WASP39b = Planet('WASP-39b', 1.27 * const.R_J, 0.28 * const.M_J, 0.0486 * const.AU, hostStar = WASP39a) # Faedi et al. 2018
+        cwd = pathlib.Path(__file__).parent.resolve()
+        # Load stars from CSV
+        self.stars = {}
+        with open(os.path.join(cwd, 'stars.csv'), newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                name = row['name']
+                R = float(row['R_sun']) * const.R_sun
+                M = float(row['M_sun']) * const.M_sun
+                T_eff = float(row['T_eff'])
+                log_g = float(row['log_g'])
+                Z = float(row['Fe_H'])
+                alpha = float(row['alpha'])
+                self.stars[name] = Star(R, M, T_eff, log_g, Z, alpha)
 
-        self.planetList = [WASP49b, HD189733b, Cancri55e, WASP39b]
+        # Load planets from CSV and link to host stars
+        self.planetList = []
+        with open(os.path.join(cwd, 'planets.csv'), newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                name = row['name']
+                R = float(row['R_J']) * const.R_J
+                M = float(row['M_J']) * const.M_J
+                a = float(row['a_AU']) * const.AU
+                hostStarName = row['hostStar']
+                hostStar = self.stars.get(hostStarName)
+                if hostStar is not None:
+                    planet = Planet(name, R, M, a, hostStar)
+                    self.planetList.append(planet)
+                else:
+                    print(f"Warning: Host star {hostStarName} not found for planet {name}")
 
     def listPlanetNames(self):
         planetNames = []
