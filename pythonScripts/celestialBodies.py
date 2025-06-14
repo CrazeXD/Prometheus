@@ -6,8 +6,8 @@ Created on 16. September 2022 by Andrea Gebek.
 """
 
 import pathlib
-import pythonScripts.constants as const
-import pythonScripts.geometryHandler as geom
+from . import constants as const
+from . import geometryHandler as geom
 import numpy as np
 import shutil
 import urllib.request as request
@@ -35,6 +35,7 @@ class Star:
     def addCLVparameters(self, CLV_u1, CLV_u2):
         self.CLV_u1 = CLV_u1
         self.CLV_u2 = CLV_u2
+        
     
     def addRMparameters(self, vsiniStarrot, phiStarrot):
         self.vsiniStarrot = vsiniStarrot

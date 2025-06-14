@@ -11,8 +11,8 @@ from scipy.special import erf, voigt_profile
 import os
 import h5py
 from scipy.interpolate import interp1d
-import pythonScripts.constants as const
-import pythonScripts.geometryHandler as geom
+from . import constants as const
+from . import geometryHandler as geom
 from scipy.interpolate import RegularGridInterpolator
 from copy import deepcopy
 from scipy.ndimage import gaussian_filter as gauss
