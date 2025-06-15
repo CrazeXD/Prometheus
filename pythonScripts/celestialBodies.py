@@ -5,16 +5,21 @@ in the calculation.
 Created on 16. September 2022 by Andrea Gebek.
 """
 
+import csv
+import os
 import pathlib
-from typing import Optional, Tuple, Callable, Any
+import shutil
+import urllib.request as request
+from contextlib import closing
+from typing import Any, Callable, Optional, Tuple
+
+import astropy.io.fits as fits
+import numpy as np
+from scipy.interpolate import interp1d
 
 from . import constants as const
 from . import geometryHandler as geom
 
-import numpy as np
-import os
-from scipy.interpolate import interp1d
-import csv
 
 class Star:
     def __init__(self, R: float, M: float, T_eff: float, log_g: float, Z: float, alpha: float) -> None:
@@ -48,12 +53,81 @@ class Star:
         arg = np.argmin(np.abs(diff))
         return grid[arg]
 
-    def getSpectrum(self) -> Tuple[np.ndarray, np.ndarray]:
-        # ... (no change to code body)
-        # (keep the function body as is)
-        # ...
-        # At the end:
-        return (w * 1e-8, F / np.pi)
+    def getSpectrum(self) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Query a PHOENIX photosphere model, either from disk or from the PHOENIX website
+        if the spectrum hasn't been downloaded before, and return the wavelength and flux arrays.
+
+        The function rounds the stellar parameters (effective temperature, surface gravity,
+        metallicity, and alpha enhancement) to the nearest available grid values, constructs
+        the appropriate URLs for the PHOENIX model FITS files, downloads them, reads the data,
+        and returns the wavelength and flux arrays in cgs units.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            A tuple containing:
+            - Wavelength array (in cm)
+            - Flux array (in cgs units, divided by pi)
+        """
+        #These contain the acceptable values.
+        T_grid = np.concatenate((np.arange(2300,7100,100),np.arange(7200,12200,200)))
+        log_g_grid = np.arange(0,6.5,0.5)
+        Z_grid = np.concatenate((np.arange(-4,-1,1),np.arange(-1.5,1.5,0.5)))
+        alpha_grid = np.arange(0,1.6,0.2)-0.2
+        
+        T_a = Star.round_to_grid(T_grid, self.T_eff)
+        log_g_a = Star.round_to_grid(log_g_grid, self.log_g)
+        Z_a = Star.round_to_grid(Z_grid, self.Z)
+        alpha_a = Star.round_to_grid(alpha_grid, self.alpha)
+
+        #This is where phoenix spectra are located.
+        root = 'ftp://phoenix.astro.physik.uni-goettingen.de/HiResFITS/'
+
+        #We assemble a combination of strings to parse the user input into the URL,
+        z_string = '{:.1f}'.format(float(Z_a))
+        if Z_a > 0:
+            z_string = '+' + z_string
+        elif Z_a == 0:
+            z_string = '-' + z_string
+        else:
+            z_string = z_string
+        a_string=''
+        if alpha_a > 0:
+            a_string ='.Alpha=+'+'{:.2f}'.format(float(alpha_a))
+        if alpha_a < 0:
+            a_string ='.Alpha='+'{:.2f}'.format(float(alpha_a))
+        t_string = str(int(T_a))
+        if T_a < 10000:
+            t_string = '0'+t_string
+        g_string = '-'+'{:.2f}'.format(float(log_g_a))
+
+        #These are URLS for the input files.
+        waveurl = root+'WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+        specurl = root+'PHOENIX-ACES-AGSS-COND-2011/Z'+z_string+a_string+'/lte'+t_string+g_string+z_string+a_string+'.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+
+        #These are the output filenames, they will also be returned so that the wrapper
+        #of this function can take them in.
+        wavename = 'WAVE.fits'
+        specname = 'lte'+t_string+g_string+z_string+a_string+'.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+
+        #Download PHOENIX spectra:
+        with closing(request.urlopen(waveurl)) as r:
+            with open(wavename, 'wb') as f:
+                shutil.copyfileobj(r, f)
+
+        with closing(request.urlopen(specurl)) as r:
+            with open(specname, 'wb') as f:
+                shutil.copyfileobj(r, f)
+
+        F = fits.getdata(specname)
+        w = fits.getdata(wavename)
+
+        os.remove(wavename)
+        os.remove(specname)
+
+        return (w * 1e-8, F / np.pi) # Conversion to cgs-units. Note that Jens divides F by
+        # a seemingly random factor of pi, but this should not bother the transit calculations here.
 
     def calculateCLV(self, rho: float) -> float:
         arg = 1. - np.sqrt(1. - rho**2 / self.R**2)
@@ -110,13 +184,14 @@ class Star:
 
 
 class Planet:
-    def __init__(self, name: str, R: float, M: float, a: float, hostStar: Star, transitDuration: float) -> None:
+    def __init__(self, name: str, R: float, M: float, a: float, hostStar: Star, transitDuration: float, orbitalPeriod: float) -> None:
         self.name: str = name
         self.R: float = R
         self.M: float = M
         self.a: float = a
         self.hostStar: Star = hostStar
         self.transitDuration: float = transitDuration
+        self.orbitalPeriod: float = orbitalPeriod
 
     def getPosition(self, orbphase: float) -> Tuple[float, float]:
         x_p = self.a * np.cos(orbphase)
@@ -197,8 +272,9 @@ class AvailablePlanets:
                 transitDuration = float(row['transitDuration']) * 24
                 hostStarName = row['hostStar']
                 hostStar = self.stars.get(hostStarName)
+                orbitalPeriod = float(row['P'])
                 if hostStar is not None:
-                    planet = Planet(name, R, M, a, hostStar, transitDuration)
+                    planet = Planet(name, R, M, a, hostStar, transitDuration, orbitalPeriod)
                     self.planetList.append(planet)
                 else:
                     print(f"Warning: Host star {hostStarName} not found for planet {name}")
