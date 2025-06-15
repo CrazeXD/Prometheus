@@ -250,7 +250,7 @@ class AvailablePlanets:
     def __init__(self) -> None:
         cwd = pathlib.Path(__file__).parent.resolve()
         self.stars: dict[str, Star] = {}
-        with open(os.path.join(cwd, 'stars.csv'), newline='') as csvfile:
+        with open(os.path.join(cwd, '../Resources/stars.csv'), newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 name = row['name']
@@ -262,7 +262,7 @@ class AvailablePlanets:
                 alpha = float(row['alpha'])
                 self.stars[name] = Star(R, M, T_eff, log_g, Z, alpha)
         self.planetList: list[Planet] = []
-        with open(os.path.join(cwd, 'planets.csv'), newline='') as csvfile:
+        with open(os.path.join(cwd, '../Resources/planets.csv'), newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 name = row['name']
