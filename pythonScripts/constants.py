@@ -5,6 +5,7 @@ Created on 2. June 2021 by Andrea Gebek.
 """
 
 import numpy as np
+from typing import List, Optional
 
 e = 4.803e-10   # Elementary charge
 m_e = 9.109e-28
@@ -24,12 +25,9 @@ AU = 1.496e13   # Conversion of one astronomical unit into cm
 """
 Generally useful functions
 """
-
-def calculateDopplerShift(v):
-    
+def calculateDopplerShift(v: float) -> float:
     beta = v / c
     shift = np.sqrt((1. - beta) / (1. + beta))
-
     return shift
 
 
@@ -38,40 +36,38 @@ Available atoms/ions with their atomic masses
 """
 
 class Species:
-    def __init__(self, name, element, ionizationState, mass):
-        self.name = name
-        self.element = element
-        self.ionizationState = ionizationState
-        self.mass = mass
+    def __init__(self, name: str, element: str, ionizationState: str, mass: float) -> None:
+        self.name: str = name
+        self.element: str = element
+        self.ionizationState: str = ionizationState
+        self.mass: float = mass
 
 class SpeciesCollection:
-    def __init__(self, speciesList = None):
+    def __init__(self, speciesList: Optional[List[Species]] = None) -> None:
         if speciesList is None:
-            self.speciesList = []
+            self.speciesList: List[Species] = []
         else:
-            self.speciesList = speciesList
+            self.speciesList: List[Species] = speciesList
 
-    def findSpecies(self, nameSpecies):
-
+    def findSpecies(self, nameSpecies: str) -> Optional[Species]:
         for species in self.speciesList:
             if species.name == nameSpecies:
                 return species
-
         print('Species', nameSpecies, 'was not found.')
         return None
 
-    def listSpeciesNames(self):
-        names = []
+    def listSpeciesNames(self) -> List[str]:
+        names: List[str] = []
         for species in self.speciesList:
             names.append(species.name)
         return names
 
-    def addSpecies(self, species):
+    def addSpecies(self, species: Species) -> None:
         self.speciesList.append(species)
 
 
 class AvailableSpecies(SpeciesCollection):
-    def __init__(self):
+    def __init__(self) -> None:
         NaI = Species('NaI', 'Na', '1', 22.99 * amu)
         KI = Species('KI', 'K', '1', 39.0983 * amu)
         SiI = Species('SiI', 'Si', '1', 28.0855 * amu)
@@ -81,4 +77,4 @@ class AvailableSpecies(SpeciesCollection):
         MgI = Species('MgI', 'Mg', '1', 24.305 * amu)
         MgII = Species('MgII', 'Mg', '2', 24.305 * amu)
 
-        self.speciesList = [NaI, KI, SiI, SiII, SiIII, SiIV, MgI, MgII]
+        self.speciesList: List[Species] = [NaI, KI, SiI, SiII, SiIII, SiIV, MgI, MgII]
