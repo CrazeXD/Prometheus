@@ -4,8 +4,10 @@ Functions to calculate the positions/velocities of exoplanet/exomoon.
 Created on 18. October 2021 by Andrea Gebek.
 """
 
-import numpy as np
 from typing import Tuple
+
+import numpy as np
+
 
 class Grid:
     def __init__(

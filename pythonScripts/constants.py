@@ -4,8 +4,9 @@ File which stores natural constants in cgs units.
 Created on 2. June 2021 by Andrea Gebek.
 """
 
-import numpy as np
 from typing import List, Optional
+
+import numpy as np
 
 e = 4.803e-10   # Elementary charge
 m_e = 9.109e-28

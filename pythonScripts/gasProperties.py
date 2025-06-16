@@ -6,17 +6,18 @@ absorption cross sections).
 Created on 19. October 2021 by Andrea Gebek.
 """
 
-import numpy as np
-from scipy.special import erf, voigt_profile
 import os
+from copy import deepcopy
+from typing import Any, Callable, List, Tuple, Union
+
 import h5py
-from scipy.interpolate import interp1d
+import numpy as np
+from scipy.interpolate import RegularGridInterpolator, interp1d
+from scipy.ndimage import gaussian_filter as gauss
+from scipy.special import erf, voigt_profile
+
 from . import constants as const
 from . import geometryHandler as geom
-from scipy.interpolate import RegularGridInterpolator
-from copy import deepcopy
-from scipy.ndimage import gaussian_filter as gauss
-from typing import List, Callable, Optional, Tuple, Any, Union
 
 lineListPath: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/Resources/LineList.txt'
 molecularLookupPath: str = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + '/molecularResources/'
