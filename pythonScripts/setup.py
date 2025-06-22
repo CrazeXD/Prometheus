@@ -1,7 +1,9 @@
-# coding=utf-8
 """
-Run a question and answer session and store a settings.txt 
-file to run PROMETHEUS.
+This script runs an interactive command-line Q&A session to gather all
+necessary parameters for a PROMETHEUS simulation. The collected settings
+are then saved into a JSON file, which can be used to run the main
+simulation script.
+
 Created on 2. June 2021 by Andrea Gebek.
 """
 
@@ -11,9 +13,37 @@ import sys
 import pythonScripts.constants as const
 import pythonScripts.celestialBodies as bodies
 
-class NumericalQuestion:
 
-    def __init__(self, questionText, lowerBorder, upperBorder, unit, roundBorders = True, digits = 0, acceptLowerBorder = True, acceptUpperBorder = True):
+class NumericalQuestion:
+    """A helper class to ask the user for a numerical input with validation.
+
+    This class handles prompting the user, checking if the input is a valid
+    number, and ensuring it falls within a specified range.
+
+    Attributes:
+        questionText (str): The question to ask the user.
+        lowerBorder (float): The lower bound of the acceptable range.
+        upperBorder (float): The upper bound of the acceptable range.
+        unit (float): A conversion factor to apply to the user's input.
+        roundBorders (bool): Whether to display borders as rounded integers.
+        digits (int): Number of decimal places for displaying borders.
+        acceptLowerBorder (bool): Whether the lower border is an inclusive value.
+        acceptUpperBorder (bool): Whether the upper border is an inclusive value.
+    """
+
+    def __init__(self, questionText, lowerBorder, upperBorder, unit, roundBorders=True, digits=0, acceptLowerBorder=True, acceptUpperBorder=True):
+        """Initializes the NumericalQuestion object.
+
+        Args:
+            questionText (str): The text of the question.
+            lowerBorder (float): The minimum acceptable value.
+            upperBorder (float): The maximum acceptable value.
+            unit (float): A conversion factor to apply to the input value.
+            roundBorders (bool): If True, display borders as scientific notation integers.
+            digits (int): Number of digits for scientific notation display.
+            acceptLowerBorder (bool): If True, the lower border is inclusive.
+            acceptUpperBorder (bool): If True, the upper border is inclusive.
+        """
         self.questionText = questionText
         self.lowerBorder = lowerBorder
         self.upperBorder = upperBorder
@@ -24,7 +54,15 @@ class NumericalQuestion:
         self.acceptUpperBorder = acceptUpperBorder
 
     def readValue(self):
-        
+        """Prompts the user for a numerical value and validates it.
+
+        The method repeatedly asks the question until a valid number within the
+        defined range is entered.
+
+        Returns:
+            float: The validated numerical value, multiplied by the unit factor.
+        """
+
         while True:
 
             if self.acceptLowerBorder:
@@ -37,20 +75,22 @@ class NumericalQuestion:
             else:
                 brackr = ') '
 
-            
             if self.roundBorders:
-                string = input(self.questionText + brackl + '{:.0e}'.format(self.lowerBorder) + ', ' + '{:.0e}'.format(self.upperBorder) + brackr).replace(' ', '')
+                string = input(self.questionText + brackl + '{:.0e}'.format(
+                    self.lowerBorder) + ', ' + '{:.0e}'.format(self.upperBorder) + brackr).replace(' ', '')
 
             elif self.digits > 0:
-                string = input(self.questionText + brackl + '{:.{n}e}'.format(self.lowerBorder, n = self.digits) + ', ' + '{:.{n}e}'.format(self.upperBorder, n = self.digits) + brackr).replace(' ', '')
+                string = input(self.questionText + brackl + '{:.{n}e}'.format(
+                    self.lowerBorder, n=self.digits) + ', ' + '{:.{n}e}'.format(self.upperBorder, n=self.digits) + brackr).replace(' ', '')
 
             else:
-                string = input(self.questionText + brackl + '{:e}'.format(self.lowerBorder) + ', ' + '{:e}'.format(self.upperBorder) + brackr).replace(' ', '')
+                string = input(self.questionText + brackl + '{:e}'.format(
+                    self.lowerBorder) + ', ' + '{:e}'.format(self.upperBorder) + brackr).replace(' ', '')
 
             if string == '':
                 print('You actually do have to enter something!')
                 continue
-            
+
             value = float(string)
 
             if value > self.lowerBorder and value < self.upperBorder:
@@ -68,8 +108,25 @@ class NumericalQuestion:
 
 
 class TextQuestion:
+    """A helper class to ask the user for a text input with validation.
 
-    def __init__(self, questionText, boolQuestion = False, options = None):
+    This class can handle simple text input or multiple-choice questions
+    where the answer must be one of the provided options.
+
+    Attributes:
+        questionText (str): The question to ask the user.
+        options (list or None): A list of valid string options for the answer.
+            If None, any non-empty string is accepted.
+    """
+
+    def __init__(self, questionText, boolQuestion=False, options=None):
+        """Initializes the TextQuestion object.
+
+        Args:
+            questionText (str): The text of the question.
+            boolQuestion (bool): If True, sets options to ['yes', 'no'].
+            options (list, optional): A list of valid string answers.
+        """
         self.questionText = questionText
         if boolQuestion:
             self.options = ['yes', 'no']
@@ -77,6 +134,14 @@ class TextQuestion:
             self.options = options
 
     def readStr(self):
+        """Prompts the user for a text value and validates it.
+
+        The method repeatedly asks the question until a valid string is entered.
+        If it is a boolean question, it returns True for 'yes' and False for 'no'.
+
+        Returns:
+            str or bool: The validated string answer, or a boolean for 'yes'/'no' questions.
+        """
 
         while True:
 
@@ -84,12 +149,13 @@ class TextQuestion:
                 string = input(self.questionText + ' ').replace(' ', '')
 
             else:
-                string = input(self.questionText + ' ' + str(self.options).replace("'",'') + ' ').replace(' ', '')
+                string = input(self.questionText + ' ' +
+                               str(self.options).replace("'", '') + ' ').replace(' ', '')
 
             if string == '':
                 print('You actually do have to enter something!')
                 continue
-            
+
             elif self.options is not None and string not in self.options:
                 print('Please select a valid option.')
                 continue
@@ -103,18 +169,27 @@ class TextQuestion:
                     return string
 
 
-
-
 """
 Fundamentals
 """
 
-QCLV = TextQuestion('Do you want to take center-to-limb variations into account?', True)
+QCLV = TextQuestion(
+    'Do you want to take center-to-limb variations into account?', True)
 QRM = TextQuestion('Do you want to take the Rossiter-McLaughlin-Effect into account (note that this means that you \
 have to provide additional information about the host star to specifiy its spectrum)?', True)
-QOrbitalMotion = TextQuestion('Do you want to consider the Doppler shifts due to planetary/exomoon orbital motion?', True)
+QOrbitalMotion = TextQuestion(
+    'Do you want to consider the Doppler shifts due to planetary/exomoon orbital motion?', True)
+
 
 def setupFundamentals():
+    """Conducts a Q&A session for fundamental simulation settings.
+
+    Asks about including center-to-limb variation, the Rossiter-McLaughlin
+    effect, and Doppler shifts from orbital motion.
+
+    Returns:
+        dict: A dictionary containing the fundamental settings.
+    """
 
     print(r"""
     *******  *******           ,/MMM8&&&.         ****     **** ******** ********** **      ** ******** **     **  ********
@@ -144,18 +219,39 @@ Scenarios for the spatial distribution of the medium
 
 QScenario = TextQuestion('Enter the name of the scenario for the number density profile or \
 0 to stop adding absorption sources:', False, ['barometric', 'hydrostatic', 'powerLaw', 'exomoon', 'torus', 'serpens', '0'])
-QTemperature = NumericalQuestion('Enter the temperature of the atmosphere in Kelvin:', 1., 1e6, 1.)
-QPressure = NumericalQuestion('Enter the pressure at the reference radius in bar:', 1e-15, 1e6, 1e6)
-Qmu = NumericalQuestion('Enter the mean molecular weight of the atmosphere in atomic mass units:', 0.05, 500., const.amu)
-QpowerLaw = NumericalQuestion('Enter the power law index for the escaping atmosphere:', 3., 20., 1., acceptLowerBorder = False)
+QTemperature = NumericalQuestion(
+    'Enter the temperature of the atmosphere in Kelvin:', 1., 1e6, 1.)
+QPressure = NumericalQuestion(
+    'Enter the pressure at the reference radius in bar:', 1e-15, 1e6, 1e6)
+Qmu = NumericalQuestion(
+    'Enter the mean molecular weight of the atmosphere in atomic mass units:', 0.05, 500., const.amu)
+QpowerLaw = NumericalQuestion(
+    'Enter the power law index for the escaping atmosphere:', 3., 20., 1., acceptLowerBorder=False)
 QpowerLawNormalization = TextQuestion('Do you want to normalize the number density profile via (total) pressure or via number \
 of absorbing atoms at the base of the wind?', False, ['pressure', 'number'])
-QpowerLawMoon = NumericalQuestion('Enter the power law index for the exomoon exosphere:', 3., 20., 1.)
-QtorusAxis = NumericalQuestion('Enter the distance between the center of the torus and the center of the exoplanet in Jovian radii:', 0.01, 1000, const.R_J)
-QtorusEjectionSpeed = NumericalQuestion('Enter the ejection velocity (which sets the torus scale height) of the particles from the torus in km/s:', 1e-2, 1e3, 1e5)
-QserpensPath = TextQuestion('Enter the full path to the serpens input txt file, including the filename with the .txt ending:')
+QpowerLawMoon = NumericalQuestion(
+    'Enter the power law index for the exomoon exosphere:', 3., 20., 1.)
+QtorusAxis = NumericalQuestion(
+    'Enter the distance between the center of the torus and the center of the exoplanet in Jovian radii:', 0.01, 1000, const.R_J)
+QtorusEjectionSpeed = NumericalQuestion(
+    'Enter the ejection velocity (which sets the torus scale height) of the particles from the torus in km/s:', 1e-2, 1e3, 1e5)
+QserpensPath = TextQuestion(
+    'Enter the full path to the serpens input txt file, including the filename with the .txt ending:')
+
 
 def setupScenario(fundamentalsDict):
+    """Conducts a Q&A session for atmosphere/exosphere density models.
+
+    Allows the user to add one or more density distribution models (e.g.,
+    barometric, power-law) and specify their parameters.
+
+    Args:
+        fundamentalsDict (dict): The dictionary of fundamental settings, which
+            may be updated if a moon scenario is chosen.
+
+    Returns:
+        dict: A dictionary of scenario models and their parameters.
+    """
 
     print('\nNow, specifiy the spatial distribution of the absorbing medium, i.e. the structure of the atmosphere/exosphere.\n')
 
@@ -181,7 +277,6 @@ def setupScenario(fundamentalsDict):
             else:
                 QScenario.options.remove('barometric')
 
-        
         elif scenario_name == 'powerLaw':
 
             params['q_esc'] = QpowerLaw.readValue()
@@ -191,30 +286,24 @@ def setupScenario(fundamentalsDict):
                 params['P_0'] = QPressure.readValue()
                 params['T'] = QTemperature.readValue()
 
-
-
         elif scenario_name == 'exomoon':
 
             params['q_moon'] = QpowerLawMoon.readValue()
 
             fundamentalsDict['ExomoonSource'] = True
 
-
         elif scenario_name == 'torus':
 
             params['a_torus'] = QtorusAxis.readValue()
             params['v_ej'] = QtorusEjectionSpeed.readValue()
 
-
         elif scenario_name == 'serpens':
 
             params['serpensPath'] = QserpensPath.readStr()
 
-
         scenarioDict[scenario_name] = params
 
         QScenario.options.remove(scenario_name)
-
 
     if len(scenarioDict) == 0:
         print('You have not added any absorption sources! Your loss. PROMETHEUS exits now.')
@@ -223,37 +312,61 @@ def setupScenario(fundamentalsDict):
     return scenarioDict
 
 
-
 """
 Architecture
 """
 
-Qsystem = TextQuestion('Enter the name of the exoplanetary system', False, bodies.AvailablePlanets().listPlanetNames())
-QRstar = NumericalQuestion('Enter the radius of the host star in solar radii:', 1e-5, 1e5, const.R_sun)
-QMstar = NumericalQuestion('Enter the mass of the host star in solar masses:', 1e-5, 1e10, const.M_sun)
-QRplanet = NumericalQuestion('Enter the radius of the exoplanet in Jupiter radii:', 1e-5, 1e5, const.R_J)
-QMplanet = NumericalQuestion('Enter the mass of the exoplanet in Jupiter masses:', 1e-5, 1e3, const.M_J)
-QorbitalRadiusPlanet = NumericalQuestion('Enter the orbital distance between planet and star in AU:', 1e-5, 1e3, const.AU)
-QTstar = NumericalQuestion('Enter the effective temperature of the star in Kelvin:', 2300., 12000., 1., roundBorders = False)
-QloggStar = NumericalQuestion('Enter the logarithmic value of the surface gravity in log10(cm/s^2):', 0., 6., 1., roundBorders = False)
-QmetallicityStar = NumericalQuestion('Enter the metallicity of the star [Fe/H]:', -4., 1., 1., roundBorders = False)
-QalphaStar = NumericalQuestion('Enter the alpha-enhancement of the star [alpha/Fe]:', -0.2, 1.2, 1., roundBorders = False)
-QRMvsini = NumericalQuestion('Enter the maximum velocity of the stellar rotation (v*sin(i)) in km/s:', 1e-2, 1e4, 1e5)
+Qsystem = TextQuestion('Enter the name of the exoplanetary system',
+                       False, bodies.AvailablePlanets().listPlanetNames())
+QRstar = NumericalQuestion(
+    'Enter the radius of the host star in solar radii:', 1e-5, 1e5, const.R_sun)
+QMstar = NumericalQuestion(
+    'Enter the mass of the host star in solar masses:', 1e-5, 1e10, const.M_sun)
+QRplanet = NumericalQuestion(
+    'Enter the radius of the exoplanet in Jupiter radii:', 1e-5, 1e5, const.R_J)
+QMplanet = NumericalQuestion(
+    'Enter the mass of the exoplanet in Jupiter masses:', 1e-5, 1e3, const.M_J)
+QorbitalRadiusPlanet = NumericalQuestion(
+    'Enter the orbital distance between planet and star in AU:', 1e-5, 1e3, const.AU)
+QTstar = NumericalQuestion(
+    'Enter the effective temperature of the star in Kelvin:', 2300., 12000., 1., roundBorders=False)
+QloggStar = NumericalQuestion(
+    'Enter the logarithmic value of the surface gravity in log10(cm/s^2):', 0., 6., 1., roundBorders=False)
+QmetallicityStar = NumericalQuestion(
+    'Enter the metallicity of the star [Fe/H]:', -4., 1., 1., roundBorders=False)
+QalphaStar = NumericalQuestion(
+    'Enter the alpha-enhancement of the star [alpha/Fe]:', -0.2, 1.2, 1., roundBorders=False)
+QRMvsini = NumericalQuestion(
+    'Enter the maximum velocity of the stellar rotation (v*sin(i)) in km/s:', 1e-2, 1e4, 1e5)
 QRMazimuth = NumericalQuestion('Enter the angle at which the maximum velocity towards the observer lies on the stellar disk \
-in degrees (measured in the canonical prometheus coordinate system of the angular coordinate)', 0., 360., np.pi / 180., roundBorders = False)
-QCLVu1 = NumericalQuestion('Enter the first (linear) coefficient for limb darkening:', -1., 1., 1.)
-QCLVu2 = NumericalQuestion('Enter the second (quadratic) coefficient for limb darkening:', -1., 1., 1.)
-QRmoon = NumericalQuestion('Enter the radius of the moon in Io radii:', 1e-3, 1e3, const.R_Io)
+in degrees (measured in the canonical prometheus coordinate system of the angular coordinate)', 0., 360., np.pi / 180., roundBorders=False)
+QCLVu1 = NumericalQuestion(
+    'Enter the first (linear) coefficient for limb darkening:', -1., 1., 1.)
+QCLVu2 = NumericalQuestion(
+    'Enter the second (quadratic) coefficient for limb darkening:', -1., 1., 1.)
+QRmoon = NumericalQuestion(
+    'Enter the radius of the moon in Io radii:', 1e-3, 1e3, const.R_Io)
 QorbphaseMoon = NumericalQuestion('Enter the orbital phase of the moon when the planet is transiting. A moon orbital phase of 0 corresponds to the moon sitting \
 between the planet and the observer, 0.25 means that the exomoon is located to the right of the planet when viewed from the observer.', -0.5, 0.5, 2. * np.pi)
 
 
 def setupArchitecture(fundamentalsDict):
+    """Conducts a Q&A session for the system architecture parameters.
+
+    Asks for the planet name and, depending on fundamental settings, parameters
+    for the RM effect, CLV, and any exomoons.
+
+    Args:
+        fundamentalsDict (dict): The dictionary of fundamental settings.
+
+    Returns:
+        dict: A dictionary of architectural parameters.
+    """
 
     print('\nProvide parameters related to the architecture of the system.\n')
 
     architectureDict = {}
-    
+
     planetName = Qsystem.readStr()
 
     architectureDict['planetName'] = planetName
@@ -265,48 +378,62 @@ def setupArchitecture(fundamentalsDict):
         architectureDict['vsini'] = QRMvsini.readValue()
         architectureDict['azimuth_starrot'] = QRMazimuth.readValue()
 
-
     if fundamentalsDict['CLV_variations']:
 
         architectureDict['u1'] = QCLVu1.readValue()
         architectureDict['u2'] = QCLVu2.readValue()
 
-
     if fundamentalsDict['ExomoonSource']:
 
         architectureDict['R_moon'] = QRmoon.readValue()
-        architectureDict['a_moon'] = NumericalQuestion('Enter the orbital distance between the exomoon and the planet in planetary radii (measured from the centers of the bodies):', 
-        1, planet.a / planet.R, planet.R, roundBorders = False).readValue()
+        architectureDict['a_moon'] = NumericalQuestion('Enter the orbital distance between the exomoon and the planet in planetary radii (measured from the centers of the bodies):',
+                                                       1, planet.a / planet.R, planet.R, roundBorders=False).readValue()
         architectureDict['starting_orbphase_moon'] = QorbphaseMoon.readValue()
 
     return architectureDict
 
 
-
 """
 Specify the absorption species.
-"""        
+"""
 
 Qmolecule = TextQuestion('Enter the name of the molecular absorber:')
-Qsigmav = NumericalQuestion('Enter the pseudo-thermal velocity dispersion (sigma_v = sqrt(k_B * T / m)) in km/s:', 1e-3, 1e5, 1e5)
-QMoleculesTemperature = NumericalQuestion('Enter the pseudo-temperature for the molecular absorber in K:', 100., 3400., 1.)
+Qsigmav = NumericalQuestion(
+    'Enter the pseudo-thermal velocity dispersion (sigma_v = sqrt(k_B * T / m)) in km/s:', 1e-3, 1e5, 1e5)
+QMoleculesTemperature = NumericalQuestion(
+    'Enter the pseudo-temperature for the molecular absorber in K:', 100., 3400., 1.)
+
 
 def setupSpecies(scenarioDict):
+    """Conducts a Q&A session for the absorbing species.
+
+    For each defined density scenario, this function asks the user to add
+    one or more atomic, ionic, or molecular absorbers and specify their
+    abundances or other properties.
+
+    Args:
+        scenarioDict (dict): The dictionary of defined density scenarios.
+
+    Returns:
+        dict: A nested dictionary containing the species and their parameters
+              for each scenario.
+    """
 
     print('\nSpecify the absorbing species and their abundances.\n')
 
     speciesDict = {}
 
-
     for key_scenario in scenarioDict.keys():
 
-        QabsorberType = TextQuestion('Do you want to add an atomic/ionic or a molecular absorber (the atom option includes ions) in the ' + key_scenario + ' scenario?', False, ['atom', 'molecule'])
+        QabsorberType = TextQuestion('Do you want to add an atomic/ionic or a molecular absorber (the atom option includes ions) in the ' +
+                                     key_scenario + ' scenario?', False, ['atom', 'molecule'])
         PossibleAbsorbers = const.AvailableSpecies().listSpeciesNames()
 
         speciesDict[key_scenario] = {}
         params = {}
 
-        if 'T' in scenarioDict[key_scenario].keys(): # Scenarios that incorporate a temperature
+        # Scenarios that incorporate a temperature
+        if 'T' in scenarioDict[key_scenario].keys():
 
             while True:
 
@@ -314,36 +441,40 @@ def setupSpecies(scenarioDict):
 
                 if absorberType == 'atom':
 
-                    key_species = TextQuestion('Enter the name of the absorbing species you want to consider for the ' + key_scenario + ' scenario:', False, PossibleAbsorbers).readStr()
-                    #params['sigma_v'] = np.sqrt(const.k_B * scenarioDict[key_scenario]['T'] / const.AvailableSpecies().findSpecies(key_species).mass) # Velocity dispersion only for atoms/ions
+                    key_species = TextQuestion('Enter the name of the absorbing species you want to consider for the ' +
+                                               key_scenario + ' scenario:', False, PossibleAbsorbers).readStr()
+                    # params['sigma_v'] = np.sqrt(const.k_B * scenarioDict[key_scenario]['T'] / const.AvailableSpecies().findSpecies(key_species).mass) # Velocity dispersion only for atoms/ions
                     PossibleAbsorbers.remove(key_species)
-                
+
                 else:
                     key_species = Qmolecule.readStr()
 
-                params['chi'] = NumericalQuestion('Enter the mixing ratio of ' + key_species + ' in the ' + key_scenario + ' scenario:', 0., 1., 1., acceptLowerBorder = False).readValue()
-                    
+                params['chi'] = NumericalQuestion('Enter the mixing ratio of ' + key_species + ' in the ' +
+                                                  key_scenario + ' scenario:', 0., 1., 1., acceptLowerBorder=False).readValue()
+
                 speciesDict[key_scenario][key_species] = params
 
-                QstopAbsorbers = TextQuestion('Do you want to add another absorber in the ' + key_scenario + ' scenario?', True)
+                QstopAbsorbers = TextQuestion(
+                    'Do you want to add another absorber in the ' + key_scenario + ' scenario?', True)
 
                 if not QstopAbsorbers.readStr():
                     break
 
-        else: # Evaporative scenarios (no temperature), only one absorbing species
+        else:  # Evaporative scenarios (no temperature), only one absorbing species
 
             absorberType = QabsorberType.readStr()
 
             if absorberType == 'atom':
-                key_species = TextQuestion('Enter the name of the absorbing species you want to consider for the ' + key_scenario + ' scenario:', False, PossibleAbsorbers).readStr()
+                key_species = TextQuestion('Enter the name of the absorbing species you want to consider for the ' +
+                                           key_scenario + ' scenario:', False, PossibleAbsorbers).readStr()
                 params['sigma_v'] = Qsigmav.readValue()
-            
+
             else:
                 key_species = Qmolecule.readStr()
                 params['T'] = QMoleculesTemperature.readValue()
 
-            params['Nparticles'] = NumericalQuestion('Enter the number of ' + key_species + ' particles in the ' + key_scenario + ' scenario:', 0., 1e50, 1., acceptLowerBorder = False).readValue()
-  
+            params['Nparticles'] = NumericalQuestion('Enter the number of ' + key_species + ' particles in the ' +
+                                                     key_scenario + ' scenario:', 0., 1e50, 1., acceptLowerBorder=False).readValue()
 
             speciesDict[key_scenario][key_species] = params
 
@@ -354,49 +485,85 @@ def setupSpecies(scenarioDict):
 Grid parameters
 """
 
-QlowerWavelengthBorder = NumericalQuestion('Enter the lower wavelength border in Angstrom:', 500, 55000, 1e-8, roundBorders = False)
-QxBins = NumericalQuestion('Enter the number of bins for the spatial discretization along the chord (x-direction):', 2., 1e6, 1.)
-QphiBins = NumericalQuestion('Enter the number of bins for the spatial discretization for the polar coordinate (phi-direction):', 1., 1e4, 1.)
-QrhoBins = NumericalQuestion('Enter the number of bins for the spatial discretization in radial direction (rho-direction):', 2., 1e6, 1.)
-QorbphaseBorder = NumericalQuestion('Enter the orbital phase at which the light curve calculation starts and stops:', 0., 0.5, 2. * np.pi)
-QorbphaseBins = NumericalQuestion('Enter the number of bins for the orbital phase discretization:', 1., 1e4, 1.)
+QlowerWavelengthBorder = NumericalQuestion(
+    'Enter the lower wavelength border in Angstrom:', 500, 55000, 1e-8, roundBorders=False)
+QxBins = NumericalQuestion(
+    'Enter the number of bins for the spatial discretization along the chord (x-direction):', 2., 1e6, 1.)
+QphiBins = NumericalQuestion(
+    'Enter the number of bins for the spatial discretization for the polar coordinate (phi-direction):', 1., 1e4, 1.)
+QrhoBins = NumericalQuestion(
+    'Enter the number of bins for the spatial discretization in radial direction (rho-direction):', 2., 1e6, 1.)
+QorbphaseBorder = NumericalQuestion(
+    'Enter the orbital phase at which the light curve calculation starts and stops:', 0., 0.5, 2. * np.pi)
+QorbphaseBins = NumericalQuestion(
+    'Enter the number of bins for the orbital phase discretization:', 1., 1e4, 1.)
+
 
 def setupGrid(architectureDict):
+    """Conducts a Q&A session for grid discretization parameters.
+
+    Asks for parameters defining the wavelength grid, the spatial integration
+    grid (x, phi, rho), and the orbital phase grid.
+
+    Args:
+        architectureDict (dict): The dictionary of architectural parameters,
+            used to provide context and default values.
+
+    Returns:
+        dict: A dictionary of grid parameters.
+    """
 
     print('\nAlmost done! Specify the discretization parameters for the wavelength and spatial grids. \n')
 
-    planet = bodies.AvailablePlanets().findPlanet(architectureDict['planetName'])
+    planet = bodies.AvailablePlanets().findPlanet(
+        architectureDict['planetName'])
 
     gridsDict = {}
 
     gridsDict['lower_w'] = QlowerWavelengthBorder.readValue()
-    gridsDict['upper_w'] = NumericalQuestion('Enter the upper wavelength border in Angstrom:', gridsDict['lower_w'] * 1e8, 55000, 1e-8, roundBorders = False).readValue()
-    gridsDict['resolutionLow'] = NumericalQuestion('Enter the resolution of the coarse wavelength grid in Angstrom:', 1e-6, (gridsDict['upper_w'] - gridsDict['lower_w']) * 1e8 / 2., 1e-8, roundBorders = False).readValue()
-    gridsDict['widthHighRes'] = NumericalQuestion('Enter the bandwidth (centered on each absorption line) over which to consider a higher resolution in Angstrom:', 1e-6, (gridsDict['upper_w'] - gridsDict['lower_w']) * 1e8 / 2., 1e-8, roundBorders = False).readValue()
-    gridsDict['resolutionHigh'] = NumericalQuestion('Enter the resolution of the fine wavelength grid in Angstrom:', 1e-6, gridsDict['widthHighRes'] * 1e8, 1e-8, roundBorders = False).readValue()
+    gridsDict['upper_w'] = NumericalQuestion(
+        'Enter the upper wavelength border in Angstrom:', gridsDict['lower_w'] * 1e8, 55000, 1e-8, roundBorders=False).readValue()
+    gridsDict['resolutionLow'] = NumericalQuestion('Enter the resolution of the coarse wavelength grid in Angstrom:',
+                                                   1e-6, (gridsDict['upper_w'] - gridsDict['lower_w']) * 1e8 / 2., 1e-8, roundBorders=False).readValue()
+    gridsDict['widthHighRes'] = NumericalQuestion('Enter the bandwidth (centered on each absorption line) over which to consider a higher resolution in Angstrom:',
+                                                  1e-6, (gridsDict['upper_w'] - gridsDict['lower_w']) * 1e8 / 2., 1e-8, roundBorders=False).readValue()
+    gridsDict['resolutionHigh'] = NumericalQuestion(
+        'Enter the resolution of the fine wavelength grid in Angstrom:', 1e-6, gridsDict['widthHighRes'] * 1e8, 1e-8, roundBorders=False).readValue()
 
-    gridsDict['x_midpoint'] = planet.a # Hardcoded default option is the orbital radius of the planetary orbit around the host star
+    # Hardcoded default option is the orbital radius of the planetary orbit around the host star
+    gridsDict['x_midpoint'] = planet.a
     gridsDict['x_border'] = NumericalQuestion('Enter the half chord length (x-direction) for the numerical integration along the x-axis in planetary radii:',
-    0., (gridsDict['x_midpoint'] - planet.hostStar.R) / planet.R, planet.R, roundBorders = False).readValue()
+                                              0., (gridsDict['x_midpoint'] - planet.hostStar.R) / planet.R, planet.R, roundBorders=False).readValue()
     gridsDict['x_steps'] = QxBins.readValue()
 
     gridsDict['phi_steps'] = QphiBins.readValue()
     gridsDict['rho_steps'] = QrhoBins.readValue()
-    gridsDict['upper_rho'] = planet.hostStar.R # Hardcoded default option is the radius of the host star
+    # Hardcoded default option is the radius of the host star
+    gridsDict['upper_rho'] = planet.hostStar.R
     gridsDict['orbphase_border'] = QorbphaseBorder.readValue()
     gridsDict['orbphase_steps'] = QorbphaseBins.readValue()
 
     return gridsDict
 
 
-
 """
 Write parameter dictionary and store it as json file
 """
 
-def createSetupFile(PATH):
 
-    inputFileName = TextQuestion('Write the name of this setup file (without file name ending):').readStr()
+def createSetupFile(PATH):
+    """Orchestrates the entire setup process and writes the results to a file.
+
+    This function calls all the individual `setup...` functions in sequence,
+    compiles the results into a single dictionary, and saves it as a JSON file
+    named by the user.
+
+    Args:
+        PATH (str): The base path where the 'setupFiles' directory is located.
+    """
+
+    inputFileName = TextQuestion(
+        'Write the name of this setup file (without file name ending):').readStr()
 
     fundamentalsDict = setupFundamentals()
     scenarioDict = setupScenario(fundamentalsDict)
@@ -404,13 +571,14 @@ def createSetupFile(PATH):
     speciesDict = setupSpecies(scenarioDict)
     gridsDict = setupGrid(architectureDict)
 
-    parameters = {'Fundamentals': fundamentalsDict, 'Architecture': architectureDict, 'Scenarios': scenarioDict, 'Species': speciesDict, 'Grids': gridsDict}
+    parameters = {'Fundamentals': fundamentalsDict, 'Architecture': architectureDict,
+                  'Scenarios': scenarioDict, 'Species': speciesDict, 'Grids': gridsDict}
 
-
-    with open(PATH +'/setupFiles/' + inputFileName + '.txt', 'w') as outfile:
+    with open(PATH + '/setupFiles/' + inputFileName + '.txt', 'w') as outfile:
         json.dump(parameters, outfile)
 
-    print('\n\nAll parameters are stored! To run PROMETHEUS, type <python prometheus.py ' + inputFileName + '>.\n\n')
+    print('\n\nAll parameters are stored! To run PROMETHEUS, type <python prometheus.py ' +
+          inputFileName + '>.\n\n')
 
     print(r"""
     *******  *******           ,/MMM8&&&.         ****     **** ******** ********** **      ** ******** **     **  ********

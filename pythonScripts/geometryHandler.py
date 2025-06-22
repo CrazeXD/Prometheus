@@ -1,6 +1,9 @@
-# coding=utf-8
 """
-Functions to calculate the positions/velocities of exoplanet/exomoon.
+This file defines the `Grid` class, which handles the creation and management
+of the spatial and temporal grids used for the transit simulation. This includes
+the line-of-sight integration axis (x), the sky-plane coordinates (rho, phi),
+and the orbital phase axis.
+
 Created on 18. October 2021 by Andrea Gebek.
 """
 
@@ -10,6 +13,31 @@ import numpy as np
 
 
 class Grid:
+    """Manages the spatial and temporal grids for the simulation.
+
+    This class stores the discretization parameters and provides methods to
+    construct the coordinate axes and a flattened grid of all points to be
+    evaluated in the simulation.
+
+    The coordinate system is defined as follows:
+    - The observer is at x = -infinity.
+    - The star is at the origin (0,0,0).
+    - The x-axis is the line of sight through the star's center.
+    - The y-z plane is the plane of the sky.
+    - `rho` is the radial distance from the origin in the y-z plane.
+    - `phi` is the azimuthal angle in the y-z plane.
+
+    Attributes:
+        x_midpoint (float): The center of the integration chord along the x-axis [cm].
+        x_border (float): The half-length of the integration chord [cm].
+        x_steps (int): The number of steps along the x-axis.
+        rho_border (float): The maximum radius on the sky plane to consider (e.g., stellar radius) [cm].
+        rho_steps (int): The number of steps along the rho-axis.
+        phi_steps (int): The number of steps along the phi-axis.
+        orbphase_border (float): The maximum absolute orbital phase to simulate [radians].
+        orbphase_steps (int): The number of orbital phase steps.
+    """
+
     def __init__(
         self,
         x_midpoint: float,
@@ -21,6 +49,18 @@ class Grid:
         orbphase_border: float,
         orbphase_steps: int
     ) -> None:
+        """Initializes the Grid object with all discretization parameters.
+
+        Args:
+            x_midpoint (float): The center of the integration chord along the x-axis [cm].
+            x_border (float): The half-length of the integration chord [cm].
+            x_steps (int): The number of steps along the x-axis.
+            rho_border (float): The maximum radius on the sky plane [cm].
+            rho_steps (int): The number of steps along the rho-axis.
+            phi_steps (int): The number of steps along the phi-axis.
+            orbphase_border (float): The max orbital phase to simulate [radians].
+            orbphase_steps (int): The number of orbital phase steps.
+        """
         self.x_midpoint = x_midpoint
         self.x_border = x_border
         self.x_steps = x_steps
@@ -32,20 +72,53 @@ class Grid:
 
     @staticmethod
     def getCartesianFromCylinder(phi: float, rho: float) -> Tuple[float, float]:
+        """Converts cylindrical coordinates on the sky plane to Cartesian (y, z).
+
+        Args:
+            phi (float): Azimuthal angle in radians.
+            rho (float): Radial distance in cm.
+
+        Returns:
+            Tuple[float, float]: The y and z coordinates in cm.
+        """
         y = rho * np.sin(phi)
         z = rho * np.cos(phi)
         return y, z
 
     def getDeltaX(self) -> float:
+        """Calculates the step size along the line-of-sight (x) axis.
+
+        Returns:
+            float: The step size delta_x in cm.
+        """
         return 2. * self.x_border / float(self.x_steps)
 
     def getDeltaRho(self) -> float:
+        """Calculates the step size in the radial (rho) direction.
+
+        Returns:
+            float: The step size delta_rho in cm.
+        """
         return self.rho_border / float(self.rho_steps)
 
     def getDeltaPhi(self) -> float:
+        """Calculates the step size in the angular (phi) direction.
+
+        Returns:
+            float: The step size delta_phi in radians.
+        """
         return 2. * np.pi / float(self.phi_steps)
 
     def constructXaxis(self, midpoints: bool = True) -> np.ndarray:
+        """Constructs the array of points along the line-of-sight (x) axis.
+
+        Args:
+            midpoints (bool, optional): If True, returns cell midpoints. If False,
+                returns cell edges. Defaults to True.
+
+        Returns:
+            np.ndarray: The array of x-coordinates in cm.
+        """
         if midpoints:  # Gas cell midpoints
             x_axis = np.linspace(
                 self.x_midpoint - self.x_border,
@@ -62,6 +135,15 @@ class Grid:
         return x_axis
 
     def constructRhoAxis(self, midpoints: bool = True) -> np.ndarray:
+        """Constructs the array of points along the radial (rho) axis.
+
+        Args:
+            midpoints (bool, optional): If True, returns cell midpoints. If False,
+                returns cell edges. Defaults to True.
+
+        Returns:
+            np.ndarray: The array of rho-coordinates in cm.
+        """
         if midpoints:
             rho_axis = np.linspace(
                 0., self.rho_border, int(self.rho_steps), endpoint=False
@@ -73,6 +155,15 @@ class Grid:
         return rho_axis
 
     def constructPhiAxis(self, midpoints: bool = True) -> np.ndarray:
+        """Constructs the array of points along the angular (phi) axis.
+
+        Args:
+            midpoints (bool, optional): If True, returns cell midpoints. If False,
+                returns cell edges. Defaults to True.
+
+        Returns:
+            np.ndarray: The array of phi-coordinates in radians.
+        """
         if midpoints:
             phi_axis = np.linspace(
                 0, 2 * np.pi, int(self.phi_steps), endpoint=False
@@ -84,12 +175,27 @@ class Grid:
         return phi_axis
 
     def constructOrbphaseAxis(self) -> np.ndarray:
+        """Constructs the array of orbital phases to be simulated.
+
+        Returns:
+            np.ndarray: The array of orbital phases in radians, centered on 0.
+        """
         orbphase_axis = np.linspace(
             -self.orbphase_border, self.orbphase_border, int(self.orbphase_steps)
         )
         return orbphase_axis
 
     def getChordGrid(self) -> np.ndarray:
+        """Creates a flattened grid of all (phi, rho, orbphase) coordinates.
+
+        This is useful for iterating through all lines of sight (chords) and
+        orbital phases that need to be evaluated in the simulation.
+
+        Returns:
+            np.ndarray: A 2D array where each row is a unique combination of
+            (phi, rho, orbphase). The shape is (phi_steps * rho_steps *
+            orbphase_steps, 3).
+        """
         phi_axis = self.constructPhiAxis()
         rho_axis = self.constructRhoAxis()
         orbphase_axis = self.constructOrbphaseAxis()
