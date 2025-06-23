@@ -554,7 +554,7 @@ class AvailablePlanets:
                 dlog_g = float(row['dlog_g'])
                 Z = float(row['Fe_H'])
                 dZ = float(row['dFe_H'])
-                alpha = float(row['alpha'])
+                alpha = 0
                 self.stars[name] = Star(
                     R, dR, M, dM, T_eff, dT_eff, log_g, dlog_g, Z, dZ, alpha)
         self.planetList: list[Planet] = []
