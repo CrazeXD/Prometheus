@@ -9,7 +9,7 @@ by various atoms and ions is considered (with line lists from NIST). Additionall
 to model absorption by molecules based on ExoMOL lookup tables.
 
 ## Installation
-Note that this code is written in python 3.8.3. Compatibility testing has so far been very limited.
+Note that this code is written in python 3.13, with typing features specific to the version.
 1. Run ```git clone https://github.com/andreagebek/Prometheus.git``` in your terminal in a directory of your choice (e.g. 'exoplanets'). This will
 create the 'Prometheus' base folder in the 'exoplanets' folder.
 2. Create the following subfolders in the 'exoplanets' folder: setupFiles, output, figures (```mkdir setupFiles output figures```). Now,
