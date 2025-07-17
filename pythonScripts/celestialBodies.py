@@ -565,7 +565,7 @@ class AvailablePlanets:
                 R = float(row['R_J']) * const.R_J
                 M = float(row['M_J']) * const.M_J
                 a = float(row['a_AU']) * const.AU
-                transitDuration = float(row['transitDuration']) * 24
+                transitDuration = float(row['transitDuration'])
                 hostStarName = row['hostStar']
                 hostStar = self.stars.get(hostStarName)
                 orbitalPeriod = float(row['P'])
