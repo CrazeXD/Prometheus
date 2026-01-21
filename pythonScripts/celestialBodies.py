@@ -342,7 +342,7 @@ class Planet:
         orbitalPeriod (float): The orbital period of the planet in days.
     """
 
-    def __init__(self, name: str, R: float, M: float, a: float, hostStar: Star, transitDuration: float, orbitalPeriod: float) -> None:
+    def __init__(self, name: str, R: float, M: float, a: float, hostStar: Star, transitDuration: float, orbitalPeriod: float, b:float) -> None:
         """Initializes the Planet object.
 
         Args:
@@ -353,6 +353,7 @@ class Planet:
             hostStar (Star): The host star object.
             transitDuration (float): The duration of the transit in hours.
             orbitalPeriod (float): The orbital period of the planet in days.
+            b (float): The impact parameter.
         """
         self.name: str = name
         self.R: float = R
@@ -361,6 +362,7 @@ class Planet:
         self.hostStar: Star = hostStar
         self.transitDuration: float = transitDuration
         self.orbitalPeriod: float = orbitalPeriod
+        self.b: float = b
 
     def getPosition(self, orbphase: float) -> Tuple[float, float]:
         """Calculates the planet's (x, y) coordinates for a given orbital phase.
@@ -569,9 +571,11 @@ class AvailablePlanets:
                 hostStarName = row['hostStar']
                 hostStar = self.stars.get(hostStarName)
                 orbitalPeriod = float(row['P'])
+                b = float(row['b'])
+                b*= hostStar.R
                 if hostStar is not None:
                     planet = Planet(name, R, M, a, hostStar,
-                                    transitDuration, orbitalPeriod)
+                                    transitDuration, orbitalPeriod, b)
                     self.planetList.append(planet)
                 else:
                     print(
