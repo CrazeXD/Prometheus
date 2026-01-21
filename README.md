@@ -34,8 +34,7 @@ which contains the resulting (time-dependent) transit spectrum of the calculatio
 
 ## Adding more planets
 Adding another exoplanet to the list of available systems is straightforward: Simply add the necessary information
-about the planet and its host star to the AvailablePlanets class in the celestialBodies.py script. Also extend
-the self.planetList in this class with the newly added object.
+about the planet and its host star to the CSV files in Resources. The script will pull from this file on each load of the library.
 
 ## Adding atomic/ionic absorption lines
 Adding more absorption lines of atoms and ions is relatively straightforward. The absorption cross sections are
