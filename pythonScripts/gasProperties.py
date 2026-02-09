@@ -21,6 +21,7 @@ from scipy.special import erf, voigt_profile
 
 from . import constants as const
 from . import geometryHandler as geom
+from . import memoryHandler as memutil
 
 lineListPath: str = os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))) + '/Resources/LineList.txt'
@@ -1083,28 +1084,67 @@ class Transit:
         F_in = rho * Fstar * np.exp(-tau)
         return F_in, F_out
 
-    def sumOverChords(self) -> np.ndarray:
+    def sumOverChords(self, max_memory_gb: float = 2.0) -> np.ndarray:
         """Integrates the flux over all chords to get the final transit depth.
 
         This method iterates over the entire spatial grid (phi, rho, orbphase),
         calls `evaluateChord` for each point, and sums the results to compute
-        the ratio of in-transit flux to out-of-transit flux.
+        the ratio of in-transit flux to out-of-transit flux. The computation
+        is chunked based on available RAM to handle large grids efficiently.
+
+        Args:
+            max_memory_gb (float): Maximum memory to use in gigabytes. Defaults to 2.0 GB.
+                                 Set to None to use 80% of available system RAM.
 
         Returns:
             np.ndarray: An array of the flux ratio (transit depth) for each
                 orbital phase and wavelength. Shape is (orbphase_steps, n_wavelengths).
         """
         chordGrid = self.spatialGrid.getChordGrid()
-        F_in: List[np.ndarray] = []
-        F_out: List[np.ndarray] = []
-        for chord in chordGrid:
-            Fsingle_in, Fsingle_out = self.evaluateChord(
-                chord[0], chord[1], chord[2])
-            F_in.append(Fsingle_in)
-            F_out.append(Fsingle_out)
-        F_in = np.array(F_in).reshape((self.spatialGrid.phi_steps * self.spatialGrid.rho_steps,
-                                       self.spatialGrid.orbphase_steps, len(self.wavelength)))
-        F_out = np.array(F_out).reshape((self.spatialGrid.phi_steps *
-                                         self.spatialGrid.rho_steps, self.spatialGrid.orbphase_steps, len(self.wavelength)))
-        R = np.sum(F_in, axis=0) / np.sum(F_out, axis=0)
+        total_chords = len(chordGrid)
+        
+        # Calculate optimal chunk size based on memory constraints
+        chunk_size = memutil.calculate_optimal_chunk_size(
+            total_chords,
+            len(self.wavelength),
+            self.spatialGrid.orbphase_steps,
+            max_memory_gb
+        )
+        
+        print(f"Processing {total_chords} chords in chunks of {chunk_size}")
+        
+        # Initialize accumulators
+        F_in_sum = np.zeros((self.spatialGrid.orbphase_steps, len(self.wavelength)))
+        F_out_sum = np.zeros((self.spatialGrid.orbphase_steps, len(self.wavelength)))
+        
+        # Process chords in chunks
+        chunk_indices = memutil.chunk_indices(total_chords, chunk_size)
+        
+        for chunk_idx, (start_idx, end_idx) in enumerate(chunk_indices):
+            print(f"  Processing chunk {chunk_idx + 1}/{len(chunk_indices)} "
+                  f"(chords {start_idx}-{end_idx-1})")
+            
+            F_in_chunk: List[np.ndarray] = []
+            F_out_chunk: List[np.ndarray] = []
+            
+            # Evaluate all chords in this chunk
+            for chord_idx in range(start_idx, end_idx):
+                chord = chordGrid[chord_idx]
+                Fsingle_in, Fsingle_out = self.evaluateChord(
+                    chord[0], chord[1], chord[2])
+                F_in_chunk.append(Fsingle_in)
+                F_out_chunk.append(Fsingle_out)
+            
+            # Sum this chunk's contribution
+            if len(F_in_chunk) > 0:
+                F_in_chunk = np.array(F_in_chunk)
+                F_out_chunk = np.array(F_out_chunk)
+                F_in_sum += np.sum(F_in_chunk, axis=0)
+                F_out_sum += np.sum(F_out_chunk, axis=0)
+            
+            # Clear chunk data to free memory
+            del F_in_chunk, F_out_chunk
+        
+        # Compute final transit depth ratio
+        R = F_in_sum / F_out_sum
         return R

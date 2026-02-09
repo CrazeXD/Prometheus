@@ -41,6 +41,17 @@ if __name__ == '__main__':
     """
 
     paramsFilename = sys.argv[1]
+    
+    # Optional: get max memory from command line (in GB)
+    # Usage: python prometheus.py setup_name --max-memory 4.0
+    max_memory_gb = 2.0  # Default to 2 GB
+    if '--max-memory' in sys.argv:
+        try:
+            memory_idx = sys.argv.index('--max-memory')
+            max_memory_gb = float(sys.argv[memory_idx + 1])
+            print(f"Using maximum memory of {max_memory_gb} GB")
+        except (IndexError, ValueError):
+            print("Warning: Invalid --max-memory argument. Using default of 2.0 GB")
 
     with open(PATH + '/setupFiles/' + paramsFilename + '.txt') as file:
         param = json.load(file)
@@ -127,7 +138,7 @@ if __name__ == '__main__':
     Execute forward model
     """
 
-    R = main.sumOverChords()
+    R = main.sumOverChords(max_memory_gb=max_memory_gb)
     wavelength = wavelengthGrid.constructWavelengthGrid(scenarioList)
     orbphase = spatialGrid.constructOrbphaseAxis()
 

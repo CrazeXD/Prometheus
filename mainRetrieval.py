@@ -60,7 +60,11 @@ main.addWavelength()
 Execute forward model
 """
 
-R = main.sumOverChords()
+# Optional: set maximum memory to use (in GB). Default is 2.0 GB.
+# Set to None to use 80% of available system RAM.
+max_memory_gb = 2.0
+
+R = main.sumOverChords(max_memory_gb=max_memory_gb)
 
 wavelength = wavelengthGrid.constructWavelengthGrid([moonExosphere])
 orbphase = spatialGrid.constructOrbphaseAxis()  # Orbital phase, in rad
