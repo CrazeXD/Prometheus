@@ -183,26 +183,29 @@ class Star:
 
         # These are the output filenames, they will also be returned so that the wrapper
         # of this function can take them in.
-        wavename = 'WAVE.fits'
-        specname = 'lte'+t_string+g_string+z_string + \
-            a_string+'.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+        cache_dir = os.path.join(os.path.dirname(__file__), "phoenix_cache")
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
 
-        # Download PHOENIX spectra:
-        with closing(request.urlopen(waveurl)) as r:
-            with open(wavename, 'wb') as f:
-                shutil.copyfileobj(r, f)
+        wavename = os.path.join(cache_dir, 'WAVE.fits')
+        specname = os.path.join(cache_dir, f'lte{t_string}{g_string}{z_string}{a_string}.fits')
 
-        with closing(request.urlopen(specurl)) as r:
-            with open(specname, 'wb') as f:
-                shutil.copyfileobj(r, f)
+        # Only download if the files don't exist
+        if not os.path.exists(wavename):
+            print(f"Downloading WAVE.fits (this will only happen once)...")
+            with closing(request.urlopen(waveurl)) as r:
+                with open(wavename, 'wb') as f:
+                    shutil.copyfileobj(r, f)
+
+        if not os.path.exists(specname):
+            print(f"Downloading stellar spectrum {specname} (this will only happen once)...")
+            with closing(request.urlopen(specurl)) as r:
+                with open(specname, 'wb') as f:
+                    shutil.copyfileobj(r, f)
 
         F = fits.getdata(specname)
         w = fits.getdata(wavename)
 
-        os.remove(wavename)
-        os.remove(specname)
-
-        # Conversion to cgs-units. Note that Jens divides F by
         return (w * 1e-8, F / np.pi)
         # a seemingly random factor of pi, but this should not bother the transit calculations here.
 
@@ -393,44 +396,78 @@ class Planet:
         v_los = -np.sin(orbphase) * np.sqrt(const.G * self.hostStar.M / self.a)
         return v_los
 
-    def getDistanceFromPlanet(self, x: float, phi: float, rho: float, orbphase: float) -> float:
+    def getDistanceFromPlanet(self, x: np.ndarray, phi, rho, orbphase) -> np.ndarray:
         """Calculates the 3D distance from a point in space to the planet's center.
 
         The point is defined in a cylindrical coordinate system (x, phi, rho)
         relative to the observer's line of sight through the star's center.
 
+        Supports both scalar and batch (array) inputs for phi, rho, orbphase.
+        When inputs are arrays of shape (n_chords,), x has shape (n_x,), the
+        result is broadcast to shape (n_chords, n_x).
+
         Args:
-            x (float): The coordinate along the line of sight in cm.
-            phi (float): The azimuthal angle on the sky plane in radians.
-            rho (float): The projected radial distance from the star's center in cm.
-            orbphase (float): The planet's orbital phase in radians.
+            x (np.ndarray): Array of coordinates along the line of sight in cm, shape (n_x,).
+            phi: Azimuthal angle(s) on the sky plane in radians. Scalar or (n_chords,).
+            rho: Projected radial distance(s) from the star's center in cm. Scalar or (n_chords,).
+            orbphase: Planet's orbital phase(s) in radians. Scalar or (n_chords,).
 
         Returns:
-            float: The distance from the point to the planet's center in cm.
+            np.ndarray: Distance(s) from the point(s) to the planet's center in cm.
+                        Shape (n_x,) for scalar inputs, (n_chords, n_x) for array inputs.
         """
         y, z = geom.Grid.getCartesianFromCylinder(phi, rho)
         x_p, y_p = self.getPosition(orbphase)
-        r_fromPlanet = np.sqrt((x - x_p)**2 + (y - y_p)**2 + z**2)
+        # For batch inputs: phi/rho/orbphase are (n_chords,), x is (n_x,).
+        # Expand body-position scalars/vectors to (n_chords, 1) and x to (1, n_x)
+        # so the subtraction broadcasts correctly to (n_chords, n_x).
+        x_    = np.asarray(x)
+        x_p_  = np.asarray(x_p)
+        y_p_  = np.asarray(y_p)
+        y_    = np.asarray(y)
+        z_    = np.asarray(z)
+        if x_p_.ndim > 0:                          # batch mode
+            x_    = x_[np.newaxis, :]              # (1, n_x)
+            x_p_  = x_p_[:, np.newaxis]            # (n_chords, 1)
+            y_p_  = y_p_[:, np.newaxis]
+            y_    = y_[:, np.newaxis]
+            z_    = z_[:, np.newaxis]
+        r_fromPlanet = np.sqrt((x_ - x_p_)**2 + (y_ - y_p_)**2 + z_**2)
         return r_fromPlanet
 
-    def getTorusCoords(self, x: float, phi: float, rho: float, orbphase: float) -> Tuple[float, float]:
+    def getTorusCoords(self, x, phi, rho, orbphase):
         """Calculates coordinates relative to the planet for a torus model.
 
+        Supports both scalar and batch (array) inputs for phi, rho, orbphase.
+        When inputs are arrays of shape (n_chords,), x has shape (n_x,), the
+        results are broadcast to shape (n_chords, n_x).
+
         Args:
-            x (float): The coordinate along the line of sight in cm.
-            phi (float): The azimuthal angle on the sky plane in radians.
-            rho (float): The projected radial distance from the star's center in cm.
-            orbphase (float): The planet's orbital phase in radians.
+            x: The coordinate(s) along the line of sight in cm, shape (n_x,).
+            phi: Azimuthal angle(s) in radians. Scalar or (n_chords,).
+            rho: Projected radial distance(s) in cm. Scalar or (n_chords,).
+            orbphase: Planet's orbital phase(s) in radians. Scalar or (n_chords,).
 
         Returns:
-            Tuple[float, float]: A tuple containing:
-                - a (float): The projected radial distance from the planet's center in the orbital plane.
-                - z (float): The vertical distance from the orbital plane.
+            Tuple (a, z):
+                a: Cylindrical radius from planet's axis. Shape (n_x,) or (n_chords, n_x).
+                z: Vertical distance from orbital plane. Shape (n_x,) or (n_chords, n_x).
         """
         y, z = geom.Grid.getCartesianFromCylinder(phi, rho)
         x_p, y_p = self.getPosition(orbphase)
-        a = np.sqrt((x - x_p)**2 + (y - y_p)**2)
-        return a, z
+        x_    = np.asarray(x)
+        x_p_  = np.asarray(x_p)
+        y_p_  = np.asarray(y_p)
+        y_    = np.asarray(y)
+        z_    = np.asarray(z)
+        if x_p_.ndim > 0:                          # batch mode
+            x_    = x_[np.newaxis, :]
+            x_p_  = x_p_[:, np.newaxis]
+            y_p_  = y_p_[:, np.newaxis]
+            y_    = y_[:, np.newaxis]
+            z_    = z_[:, np.newaxis]
+        a = np.sqrt((x_ - x_p_)**2 + (y_ - y_p_)**2)
+        return a, z_
 
 
 class Moon:
@@ -509,21 +546,37 @@ class Moon:
             np.sqrt(const.G * self.hostPlanet.M / self.a)
         return v_los
 
-    def getDistanceFromMoon(self, x: float, phi: float, rho: float, orbphase: float) -> float:
+    def getDistanceFromMoon(self, x, phi, rho, orbphase) -> np.ndarray:
         """Calculates the 3D distance from a point in space to the moon's center.
 
+        Supports both scalar and batch (array) inputs for phi, rho, orbphase.
+        When inputs are arrays of shape (n_chords,), x has shape (n_x,), the
+        result is broadcast to shape (n_chords, n_x).
+
         Args:
-            x (float): The coordinate along the line of sight in cm.
-            phi (float): The azimuthal angle on the sky plane in radians.
-            rho (float): The projected radial distance from the star's center in cm.
-            orbphase (float): The host planet's orbital phase in radians.
+            x: Array of coordinates along the line of sight in cm, shape (n_x,).
+            phi: Azimuthal angle(s) on the sky plane in radians. Scalar or (n_chords,).
+            rho: Projected radial distance(s) from the star's center in cm. Scalar or (n_chords,).
+            orbphase: Host planet's orbital phase(s) in radians. Scalar or (n_chords,).
 
         Returns:
-            float: The distance from the point to the moon's center in cm.
+            np.ndarray: Distance(s) to the moon in cm.
+                        Shape (n_x,) for scalar inputs, (n_chords, n_x) for array inputs.
         """
         y, z = geom.Grid.getCartesianFromCylinder(phi, rho)
         x_moon, y_moon = self.getPosition(orbphase)
-        r_fromMoon = np.sqrt((x - x_moon)**2 + (y - y_moon)**2 + z**2)
+        x_     = np.asarray(x)
+        x_m_   = np.asarray(x_moon)
+        y_m_   = np.asarray(y_moon)
+        y_     = np.asarray(y)
+        z_     = np.asarray(z)
+        if x_m_.ndim > 0:                          # batch mode
+            x_     = x_[np.newaxis, :]             # (1, n_x)
+            x_m_   = x_m_[:, np.newaxis]           # (n_chords, 1)
+            y_m_   = y_m_[:, np.newaxis]
+            y_     = y_[:, np.newaxis]
+            z_     = z_[:, np.newaxis]
+        r_fromMoon = np.sqrt((x_ - x_m_)**2 + (y_ - y_m_)**2 + z_**2)
         return r_fromMoon
 
 
