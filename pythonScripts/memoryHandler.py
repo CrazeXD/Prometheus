@@ -15,7 +15,7 @@ def get_available_memory(max_memory_gb: float = 2.0) -> int:
 
     Args:
         max_memory_gb (float): Maximum memory to use in gigabytes. Defaults to 2.0 GB.
-                             Set to None to use 80% of available system RAM.
+                             Set to None to use 50% of available system RAM.
 
     Returns:
         int: Available memory in bytes.
