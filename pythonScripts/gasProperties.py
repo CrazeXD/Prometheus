@@ -1,4 +1,3 @@
-
 """
 This file defines classes and functions related to the properties of the
 gaseous medium in an exoplanet's atmosphere or exosphere. It includes
@@ -15,18 +14,38 @@ from typing import Any, Callable, List, Tuple, Union
 
 import h5py
 import numpy as np
+from numba import njit, prange
 from scipy.interpolate import RegularGridInterpolator, interp1d
 from scipy.ndimage import gaussian_filter as gauss
 from scipy.special import erf, voigt_profile
 
 from . import constants as const
 from . import geometryHandler as geom
+from . import memoryHandler as memutil
 
 lineListPath: str = os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))) + '/Resources/LineList.txt'
 molecularLookupPath: str = os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))) + '/molecularResources/'
 
+@njit(parallel=True, fastmath=True)
+def n_interp_log(x_targets, x_grid, y_grid_log, offset):
+    """
+    Numba-accelerated vectorized linear interpolation.
+    Processes millions of points across multiple CPU cores.
+    """
+    out = np.empty(x_targets.shape, dtype=np.float64)
+    # Flatten for interpolation, then reshape back
+    flat_targets = x_targets.ravel()
+    flat_out = np.empty(flat_targets.shape, dtype=np.float64)
+    
+    # xp must be increasing for np.interp
+    for i in prange(len(flat_targets)):
+        # np.interp is supported by Numba and is much faster than scipy interp1d
+        log_val = np.interp(flat_targets[i], x_grid, y_grid_log)
+        flat_out[i] = 10**log_val - offset
+        
+    return flat_out.reshape(x_targets.shape)
 
 class CollisionalAtmosphere:
     """Base class for a collisional atmosphere with a defined temperature and pressure.
@@ -286,17 +305,20 @@ class PowerLawExosphere(EvaporativeExosphere):
         self.q: float = q
         self.planet: Any = planet
 
-    def calculateNumberDensity(self, x: np.ndarray, phi: float, rho: float, orbphase: float) -> np.ndarray:
+    def calculateNumberDensity(self, x: np.ndarray, phi, rho, orbphase) -> np.ndarray:
         """Calculates the number density at a given point in space.
+
+        Supports both scalar and batch (array) inputs for phi, rho, orbphase.
+        When inputs are arrays of shape (n_chords,), returns (n_chords, n_x).
 
         Args:
             x (np.ndarray): Array of coordinates along the line of sight (cm).
-            phi (float): Azimuthal angle on the sky plane (radians).
-            rho (float): Projected radial distance from star's center (cm).
-            orbphase (float): Planet's orbital phase (radians).
+            phi: Azimuthal angle(s) on the sky plane (radians). Scalar or (n_chords,).
+            rho: Projected radial distance(s) from star's center (cm). Scalar or (n_chords,).
+            orbphase: Planet's orbital phase(s) (radians). Scalar or (n_chords,).
 
         Returns:
-            np.ndarray: The number density at each x coordinate (cm^-3).
+            np.ndarray: Number density. Shape (n_x,) for scalar, (n_chords, n_x) for batch.
         """
         r = self.planet.getDistanceFromPlanet(x, phi, rho, orbphase)
         n_0 = (self.q - 3.) / (4. * np.pi * self.planet.R**3) * self.N
@@ -328,17 +350,20 @@ class MoonExosphere(EvaporativeExosphere):
         self.hasMoon: bool = True
         self.planet: Any = moon.hostPlanet
 
-    def calculateNumberDensity(self, x: np.ndarray, phi: float, rho: float, orbphase: float) -> np.ndarray:
+    def calculateNumberDensity(self, x: np.ndarray, phi, rho, orbphase) -> np.ndarray:
         """Calculates the number density at a given point in space.
+
+        Supports both scalar and batch (array) inputs for phi, rho, orbphase.
+        When inputs are arrays of shape (n_chords,), returns (n_chords, n_x).
 
         Args:
             x (np.ndarray): Array of coordinates along the line of sight (cm).
-            phi (float): Azimuthal angle on the sky plane (radians).
-            rho (float): Projected radial distance from star's center (cm).
-            orbphase (float): Planet's orbital phase (radians).
+            phi: Azimuthal angle(s) on the sky plane (radians). Scalar or (n_chords,).
+            rho: Projected radial distance(s) from star's center (cm). Scalar or (n_chords,).
+            orbphase: Planet's orbital phase(s) (radians). Scalar or (n_chords,).
 
         Returns:
-            np.ndarray: The number density at each x coordinate (cm^-3).
+            np.ndarray: Number density. Shape (n_x,) for scalar, (n_chords, n_x) for batch.
         """
         r = self.moon.getDistanceFromMoon(x, phi, rho, orbphase)
         n_0 = (self.q - 3.) / (4. * np.pi * self.moon.R**3) * self.N
@@ -407,21 +432,28 @@ class TidallyHeatedMoon(EvaporativeExosphere):
         N = 10**self.N_function(orbphase_moon)
         return N
 
-    def calculateNumberDensity(self, x: np.ndarray, phi: float, rho: float, orbphase: float) -> np.ndarray:
+    def calculateNumberDensity(self, x: np.ndarray, phi, rho, orbphase) -> np.ndarray:
         """Calculates the number density at a given point in space.
+
+        Supports both scalar and batch (array) inputs for phi, rho, orbphase.
+        When inputs are arrays of shape (n_chords,), returns (n_chords, n_x).
 
         Args:
             x (np.ndarray): Array of coordinates along the line of sight (cm).
-            phi (float): Azimuthal angle on the sky plane (radians).
-            rho (float): Projected radial distance from star's center (cm).
-            orbphase (float): Planet's orbital phase (radians).
+            phi: Azimuthal angle(s) on the sky plane (radians). Scalar or (n_chords,).
+            rho: Projected radial distance(s) from star's center (cm). Scalar or (n_chords,).
+            orbphase: Planet's orbital phase(s) (radians). Scalar or (n_chords,).
 
         Returns:
-            np.ndarray: The number density at each x coordinate (cm^-3).
+            np.ndarray: Number density. Shape (n_x,) for scalar, (n_chords, n_x) for batch.
         """
         N = self.calculateAbsorberNumber(orbphase)
         r = self.moon.getDistanceFromMoon(x, phi, rho, orbphase)
-        n_0 = (self.q - 3.) / (4. * np.pi * self.moon.R**3) * N
+        # N may be a scalar or (n_chords,); broadcast to match r
+        N_ = np.asarray(N)
+        if N_.ndim > 0:
+            N_ = N_[:, np.newaxis]     # (n_chords, 1) to broadcast with (n_chords, n_x)
+        n_0 = (self.q - 3.) / (4. * np.pi * self.moon.R**3) * N_
         n = n_0 * (self.moon.R / r)**self.q * np.heaviside(r - self.moon.R, 1.)
         return n
 
@@ -453,17 +485,20 @@ class TorusExosphere(EvaporativeExosphere):
         self.v_ej: float = v_ej
         self.planet: Any = planet
 
-    def calculateNumberDensity(self, x: np.ndarray, phi: float, rho: float, orbphase: float) -> np.ndarray:
+    def calculateNumberDensity(self, x: np.ndarray, phi, rho, orbphase) -> np.ndarray:
         """Calculates the number density at a given point in space.
+
+        Supports both scalar and batch (array) inputs for phi, rho, orbphase.
+        When inputs are arrays of shape (n_chords,), returns (n_chords, n_x).
 
         Args:
             x (np.ndarray): Array of coordinates along the line of sight (cm).
-            phi (float): Azimuthal angle on the sky plane (radians).
-            rho (float): Projected radial distance from star's center (cm).
-            orbphase (float): Planet's orbital phase (radians).
+            phi: Azimuthal angle(s) on the sky plane (radians). Scalar or (n_chords,).
+            rho: Projected radial distance(s) from star's center (cm). Scalar or (n_chords,).
+            orbphase: Planet's orbital phase(s) (radians). Scalar or (n_chords,).
 
         Returns:
-            np.ndarray: The number density at each x coordinate (cm^-3).
+            np.ndarray: Number density. Shape (n_x,) for scalar, (n_chords, n_x) for batch.
         """
         a, z = self.planet.getTorusCoords(x, phi, rho, orbphase)
         v_orbit = np.sqrt(const.G * self.planet.M / self.a_torus)
@@ -689,18 +724,14 @@ class AtmosphericConstituent:
             np.ndarray], np.ndarray] = lookupFunction
 
     def getSigmaAbs(self, wavelength: np.ndarray) -> np.ndarray:
-        """Retrieves the absorption cross-section using the lookup function.
-
-        Args:
-            wavelength (np.ndarray): Wavelength array [cm].
-
-        Returns:
-            np.ndarray: Absorption cross-section array [cm^2].
-        """
-        sigma_absFlattened = 10**self.lookupFunction(
-            wavelength.flatten()) - self.lookupOffset
-        sigma_abs = sigma_absFlattened.reshape(wavelength.shape)
-        return sigma_abs
+        # wavelength can now be a 2D or 3D array (batch, x, wavelength)
+        # We pass the underlying numpy arrays from the interp1d object
+        return n_interp_log(
+            wavelength, 
+            self.lookupFunction.x, 
+            self.lookupFunction.y, 
+            self.lookupOffset
+        )
 
 
 class MolecularConstituent:
@@ -840,46 +871,60 @@ class Atmosphere:
                 v_los += densityDistribution.moon.getLOSvelocity(orbphase)
         return v_los
 
-    def getLOSopticalDepth(self, x: np.ndarray, phi: float, rho: float, orbphase: float, wavelength: np.ndarray, delta_x: float) -> np.ndarray:
-        """Calculates the total line-of-sight (LOS) optical depth.
+    def getLOSopticalDepth_Batch(self, x_grid, phi_batch, rho_batch, orbphase_batch, wavelength, delta_x):
+        """Calculates optical depth for a batch of chords.
 
-        This method sums the contributions from all constituents in all density
-        distributions to compute the total optical depth along a single chord
-        through the atmosphere.
+        Fully vectorized — no Python loops over individual chords.
+        n_tot has shape (n_chords, n_x), shifted_wav has shape (n_chords, n_wav).
 
         Args:
-            x (np.ndarray): Array of coordinates along the line of sight (cm).
-            phi (float): Azimuthal angle on the sky plane (radians).
-            rho (float): Projected radial distance from star's center (cm).
-            orbphase (float): Planet's orbital phase (radians).
-            wavelength (np.ndarray): The wavelength grid [cm].
-            delta_x (float): The step size along the x-axis (line of sight) [cm].
+            x_grid (np.ndarray): Line-of-sight grid, shape (n_x,).
+            phi_batch (np.ndarray): Azimuthal angles, shape (n_chords,).
+            rho_batch (np.ndarray): Projected radii, shape (n_chords,).
+            orbphase_batch (np.ndarray): Orbital phases, shape (n_chords,).
+            wavelength (np.ndarray): Wavelength grid, shape (n_wav,).
+            delta_x (float): Step size along line of sight.
 
         Returns:
-            np.ndarray: The total optical depth (tau) for each wavelength.
+            np.ndarray: Optical depths, shape (n_chords, n_wav).
         """
-        kappa = np.zeros((len(x), len(wavelength)))
-        for densityDistribution in self.densityDistributionList:
-            for constituent in densityDistribution.constituents:
-                v_los = self.getAbsorberVelocityField(
-                    densityDistribution, x, phi, rho, orbphase)
-                shift = const.calculateDopplerShift(-v_los)
-                wavelengthShifted = np.tensordot(shift, wavelength, axes=0)
-                if constituent.isMolecule:
-                    n_tot = densityDistribution.calculateNumberDensity(
-                        x, phi, rho, orbphase)
-                    n_abs = n_tot * constituent.chi
-                    T = densityDistribution.T
-                    P = n_tot * const.k_B * T
-                    sigma_abs = constituent.getSigmaAbs(
-                        P, T, wavelengthShifted)
+        n_chords = len(phi_batch)
+        n_wav = len(wavelength)
+        total_tau = np.zeros((n_chords, n_wav))
+
+        for dist_model in self.densityDistributionList:
+            # --- velocity: one value per chord, no loop ---
+            if self.hasOrbitalDopplerShift:
+                if not dist_model.hasMoon:
+                    v_los = dist_model.planet.getLOSvelocity(orbphase_batch)   # (n_chords,)
                 else:
-                    n_abs = Atmosphere.getAbsorberNumberDensity(
-                        densityDistribution, constituent.chi, x, phi, rho, orbphase)
-                    sigma_abs = constituent.getSigmaAbs(wavelengthShifted)
-                kappa += np.tile(n_abs, (len(wavelength), 1)).T * sigma_abs
-        LOStau = np.sum(kappa, axis=0) * delta_x
-        return LOStau
+                    v_los = dist_model.moon.getLOSvelocity(orbphase_batch)     # (n_chords,)
+            else:
+                v_los = np.zeros(n_chords)
+
+            shifts = const.calculateDopplerShift(-v_los)                       # (n_chords,)
+            shifted_wav = shifts[:, np.newaxis] * wavelength[np.newaxis, :]   # (n_chords, n_wav)
+
+            # --- density: fully vectorized, returns (n_chords, n_x) ---
+            n_tot = dist_model.calculateNumberDensity(
+                x_grid, phi_batch, rho_batch, orbphase_batch
+            )  # (n_chords, n_x)
+
+            for constituent in dist_model.constituents:
+                # Integrate along x-axis for each chord -> (n_chords,)
+                col_density = np.sum(n_tot * constituent.chi, axis=1) * delta_x
+
+                if constituent.isMolecule:
+                    # Pressure field shape (n_chords, n_x)
+                    P = n_tot * const.k_B * dist_model.T
+                    sigma = constituent.getSigmaAbs(P, dist_model.T, shifted_wav)
+                else:
+                    # Numba-accelerated lookup on 2-D wavelength array (n_chords, n_wav)
+                    sigma = constituent.getSigmaAbs(shifted_wav)
+
+                total_tau += col_density[:, np.newaxis] * sigma   # (n_chords, n_wav)
+
+        return total_tau
 
 
 class WavelengthGrid:
@@ -1083,28 +1128,71 @@ class Transit:
         F_in = rho * Fstar * np.exp(-tau)
         return F_in, F_out
 
-    def sumOverChords(self) -> np.ndarray:
-        """Integrates the flux over all chords to get the final transit depth.
-
-        This method iterates over the entire spatial grid (phi, rho, orbphase),
-        calls `evaluateChord` for each point, and sums the results to compute
-        the ratio of in-transit flux to out-of-transit flux.
-
-        Returns:
-            np.ndarray: An array of the flux ratio (transit depth) for each
-                orbital phase and wavelength. Shape is (orbphase_steps, n_wavelengths).
-        """
+    def sumOverChords(self, max_memory_gb: float = 2.0) -> np.ndarray:
         chordGrid = self.spatialGrid.getChordGrid()
-        F_in: List[np.ndarray] = []
-        F_out: List[np.ndarray] = []
-        for chord in chordGrid:
-            Fsingle_in, Fsingle_out = self.evaluateChord(
-                chord[0], chord[1], chord[2])
-            F_in.append(Fsingle_in)
-            F_out.append(Fsingle_out)
-        F_in = np.array(F_in).reshape((self.spatialGrid.phi_steps * self.spatialGrid.rho_steps,
-                                       self.spatialGrid.orbphase_steps, len(self.wavelength)))
-        F_out = np.array(F_out).reshape((self.spatialGrid.phi_steps *
-                                         self.spatialGrid.rho_steps, self.spatialGrid.orbphase_steps, len(self.wavelength)))
-        R = np.sum(F_in, axis=0) / np.sum(F_out, axis=0)
-        return R
+        n_wav = len(self.wavelength)
+        n_orb = self.spatialGrid.orbphase_steps
+        
+        F_in_sum = np.zeros((n_orb, n_wav))
+        F_out_sum = np.zeros((n_orb, n_wav))
+        
+        phi = chordGrid[:, 0]
+        rho = chordGrid[:, 1]
+        orb = chordGrid[:, 2]
+        
+        y = rho * np.sin(phi)
+        z = rho * np.cos(phi)
+        
+        orb_axis = self.spatialGrid.constructOrbphaseAxis()
+        orb_indices = np.abs(orb[:, None] - orb_axis).argmin(axis=1)
+
+        star = self.planet.hostStar
+        mu_term = np.sqrt(np.clip(1. - rho**2 / star.R**2, 0, 1))
+        clv = 1. - star.CLV_u1 * (1. - mu_term) - star.CLV_u2 * (1. - mu_term)**2
+        
+        v_star = star.vsiniStarrot * rho / star.R * np.cos(phi - star.phiStarrot)
+        star_shifts = const.calculateDopplerShift(v_star)
+
+        from . import memoryHandler as mem
+        batch_size = mem.calculate_optimal_chunk_size(len(chordGrid), n_wav, n_orb, max_memory_gb)
+        
+        x_grid = self.spatialGrid.constructXaxis()
+        delta_x = self.spatialGrid.getDeltaX()
+
+        for i in range(0, len(chordGrid), batch_size):
+            idx = slice(i, i + batch_size)
+            
+            # --- MODIFIED SECTION ---
+            # If no spectrum is loaded, assume a flat star (flux = 1.0)
+            if star.Fstar_function is None:
+                F_star_batch = np.ones((len(phi[idx]), n_wav))
+            else:
+                star_wav_shifted = self.wavelength[None, :] / star_shifts[idx, None]
+                F_star_batch = n_interp_log(
+                    star_wav_shifted, 
+                    star.Fstar_function.x, 
+                    star.Fstar_function.y, 
+                    0.0
+                )
+            # ------------------------
+            
+            F_star_batch *= clv[idx, None]
+
+            y_p = self.planet.a * np.sin(orb[idx])
+            is_blocked = (np.sqrt((y[idx] - y_p)**2 + z[idx]**2) < self.planet.R)
+            
+            F_out = rho[idx, None] * F_star_batch
+            F_in = np.zeros_like(F_out)
+            
+            active = ~is_blocked
+            if np.any(active):
+                tau = self.atmosphere.getLOSopticalDepth_Batch(
+                    x_grid, phi[idx][active], rho[idx][active], 
+                    orb[idx][active], self.wavelength, delta_x
+                )
+                F_in[active] = F_out[active] * np.exp(-tau)
+
+            np.add.at(F_in_sum, orb_indices[idx], F_in)
+            np.add.at(F_out_sum, orb_indices[idx], F_out)
+
+        return F_in_sum / F_out_sum
