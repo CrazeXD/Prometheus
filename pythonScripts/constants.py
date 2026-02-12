@@ -144,5 +144,15 @@ class AvailableSpecies(SpeciesCollection):
         SiIV = Species('SiIV', 'Si', '4', 28.0855 * amu)
         MgI = Species('MgI', 'Mg', '1', 24.305 * amu)
         MgII = Species('MgII', 'Mg', '2', 24.305 * amu)
+        AlI = Species('AlI', 'Al', '1', 26.9815 * amu)
+        CaI = Species('CaI', 'Ca', '1', 40.078 * amu)
+        CaII = Species('CaII', 'Ca', '2', 40.078 * amu)
+        TiI = Species('TiI', 'Ti', '1', 47.867 * amu)
+        TiII = Species('TiII', 'Ti', '2', 47.867 * amu)
+        CrI = Species('CrI', 'Cr', '1', 51.9961 * amu)
+        MnI = Species('MnI', 'Mn', '1', 54.938 * amu)
+        FeI = Species('FeI', 'Fe', '1', 55.845 * amu)
+        CoI = Species('CoI', 'Co', '1', 58.933 * amu)
+        NiI = Species('NiI', 'Ni', '1', 58.6934 * amu)
 
-        self.speciesList: List[Species] = [NaI, KI, SiI, SiII, SiIII, SiIV, MgI, MgII]
+        self.speciesList: List[Species] = [NaI, KI, SiI, SiII, SiIII, SiIV, MgI, MgII, AlI, CaI, CaII, TiI, TiII, CrI, MnI, FeI, CoI, NiI]

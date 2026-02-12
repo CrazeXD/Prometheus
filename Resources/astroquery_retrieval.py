@@ -7,9 +7,15 @@ elements_mapping = {
     "Ca I": ("Ca", 1),
     "Ca II": ("Ca", 2),
     "Ti I": ("Ti", 1),
-    "Ti II": ("Ti", 2)
+    "Ti II": ("Ti", 2),
+    "Cr I": ("Cr", 1),
+    "Mn I": ("Mn", 1),
+    "Fe I": ("Fe", 1),
+    "Co I": ("Co", 1),
+    "Ni I": ("Ni", 1),
+    
 }
-output_filename = "New_LineList_Entries_Quoted.txt"
+output_filename = "New_LineList_Entries.txt"
 
 with open(output_filename, "w") as f:
     # Header remains the same
