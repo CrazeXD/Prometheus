@@ -786,25 +786,30 @@ class MolecularConstituent:
             np.ndarray], np.ndarray] = lookupFunction
 
     def getSigmaAbs(self, P: np.ndarray, T: float, wavelength: np.ndarray) -> np.ndarray:
-        """Retrieves the absorption cross-section using the lookup function.
+        # wavelength is (n_chords, n_wav)
+        # P is (n_chords, n_x)
+        n_chords, n_wav = wavelength.shape
+        n_x = P.shape[1]
 
-        Args:
-            P (np.ndarray): Pressure array [cgs units].
-            T (float): Temperature [K].
-            wavelength (np.ndarray): Wavelength array [cm].
+        # 1. Broadcast P to (n_chords, n_x, n_wav)
+        # Add a new axis at the end and repeat it for every wavelength
+        P_3d = np.repeat(P[:, :, np.newaxis], n_wav, axis=2)
 
-        Returns:
-            np.ndarray: Absorption cross-section array [cm^2].
-        """
-        wavelengthFlattened = wavelength.flatten()
+        # 2. Broadcast wavelength to (n_chords, n_x, n_wav)
+        # Add a new axis in the middle and repeat it for every spatial step x
+        wav_3d = np.repeat(wavelength[:, np.newaxis, :], n_x, axis=1)
+
+        wavelengthFlattened = wav_3d.flatten()
+        PFlattened = np.clip(P_3d.flatten(), a_min=1e-4, a_max=None)
         TFlattened = np.full_like(wavelengthFlattened, T)
-        PFlattened = np.repeat(
-            np.clip(P, a_min=1e-4, a_max=None), np.size(wavelength, axis=1))
-        inputArray = np.array([PFlattened, TFlattened, wavelengthFlattened]).T
-        sigma_absFlattened = 10**self.lookupFunction(
-            inputArray) - self.lookupOffset
-        sigma_abs = sigma_absFlattened.reshape(wavelength.shape)
-        return sigma_abs
+
+        # Now all arrays have the same length: (n_chords * n_x * n_wav)
+        inputArray = np.stack([PFlattened, TFlattened, wavelengthFlattened], axis=1)
+        
+        sigma_absFlattened = 10**self.lookupFunction(inputArray) - self.lookupOffset
+        
+        # Return as 3D array: (n_chords, n_x, n_wav)
+        return sigma_absFlattened.reshape(n_chords, n_x, n_wav)
 
 
 class Atmosphere:
@@ -911,18 +916,23 @@ class Atmosphere:
             )  # (n_chords, n_x)
 
             for constituent in dist_model.constituents:
-                # Integrate along x-axis for each chord -> (n_chords,)
-                col_density = np.sum(n_tot * constituent.chi, axis=1) * delta_x
-
                 if constituent.isMolecule:
                     # Pressure field shape (n_chords, n_x)
                     P = n_tot * const.k_B * dist_model.T
+                    # sigma is (n_chords, n_x, n_wav)
                     sigma = constituent.getSigmaAbs(P, dist_model.T, shifted_wav)
+                    
+                    # Number density of absorber: (n_chords, n_x, 1) for broadcasting
+                    n_abs = (n_tot * constituent.chi)[:, :, np.newaxis]
+                    
+                    # Integrate: sum(n * sigma * dx) along axis 1 (the x-axis)
+                    total_tau += np.sum(n_abs * sigma, axis=1) * delta_x
                 else:
-                    # Numba-accelerated lookup on 2-D wavelength array (n_chords, n_wav)
-                    sigma = constituent.getSigmaAbs(shifted_wav)
-
-                total_tau += col_density[:, np.newaxis] * sigma   # (n_chords, n_wav)
+                    # Atoms: sigma only depends on wavelength, not local pressure
+                    # Pre-calculating column density is fine here
+                    col_density = np.sum(n_tot * constituent.chi, axis=1) * delta_x
+                    sigma = constituent.getSigmaAbs(shifted_wav) # (n_chords, n_wav)
+                    total_tau += col_density[:, np.newaxis] * sigma
 
         return total_tau
 
@@ -1152,9 +1162,23 @@ class Transit:
         
         v_star = star.vsiniStarrot * rho / star.R * np.cos(phi - star.phiStarrot)
         star_shifts = const.calculateDopplerShift(v_star)
+        
+        has_molecules = any(
+            any(c.isMolecule for c in dist.constituents) 
+            for dist in self.atmosphere.densityDistributionList
+        )
+        
+        x_grid = self.spatialGrid.constructXaxis()
+        n_x = len(x_grid)
 
         from . import memoryHandler as mem
-        batch_size = mem.calculate_optimal_chunk_size(len(chordGrid), n_wav, n_orb, max_memory_gb)
+        batch_size = mem.calculate_optimal_chunk_size(
+            len(chordGrid), 
+            n_wav, 
+            n_x,             # Pass n_x here
+            max_memory_gb,
+            is_molecular=has_molecules
+        )
         
         x_grid = self.spatialGrid.constructXaxis()
         delta_x = self.spatialGrid.getDeltaX()

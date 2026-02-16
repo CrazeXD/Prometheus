@@ -33,54 +33,35 @@ def get_available_memory(max_memory_gb: float = 2.0) -> int:
 
 def estimate_chord_memory(
     num_wavelengths: int,
-    orbphase_steps: int
+    n_x: int,           # Added n_x
+    is_molecular: bool = True
 ) -> int:
-    """Estimates memory required for a single chord evaluation.
-
-    Args:
-        num_wavelengths (int): Number of wavelength points.
-        orbphase_steps (int): Number of orbital phase steps.
-
-    Returns:
-        int: Estimated memory in bytes for one chord.
-    """
-    # Each chord produces two arrays (F_in, F_out) of shape (orbphase_steps, num_wavelengths)
-    # plus some overhead for intermediate calculations
-    bytes_per_array = num_wavelengths * orbphase_steps * 8  # 8 bytes for float64
-    # 2 arrays (F_in, F_out) + some overhead for intermediate computations
-    return 2 * bytes_per_array * 1.2  # 20% overhead for safety
+    """Estimates memory for processing chords in a batch."""
+    # float64 = 8 bytes
+    
+    if is_molecular:
+        # We create P_3d (8), wav_3d (8), inputArray (24), and sigma_abs (8)
+        # Total is roughly 48 bytes per point in the (n_x * n_wav) grid
+        bytes_per_chord = n_x * num_wavelengths * 48
+    else:
+        # Atomic is much lighter
+        bytes_per_chord = num_wavelengths * 16 
+        
+    return int(bytes_per_chord * 1.5) # 50% buffer for python overhead
 
 
 def calculate_optimal_chunk_size(
     total_chords: int,
     num_wavelengths: int,
-    orbphase_steps: int,
-    max_memory_gb: float = 2.0
+    n_x: int,
+    max_memory_gb: float = 2.0,
+    is_molecular: bool = True
 ) -> int:
-    """Calculates the optimal number of chords to process in a single chunk.
-
-    Args:
-        total_chords (int): Total number of chords to process.
-        num_wavelengths (int): Number of wavelength points.
-        orbphase_steps (int): Number of orbital phase steps.
-        max_memory_gb (float): Maximum memory to use in gigabytes. Defaults to 2.0 GB.
-
-    Returns:
-        int: Number of chords to process in one chunk.
-    """
     available_bytes = get_available_memory(max_memory_gb)
-    memory_per_chord = estimate_chord_memory(num_wavelengths, orbphase_steps)
+    memory_per_chord = estimate_chord_memory(num_wavelengths, n_x, is_molecular)
     
-    if memory_per_chord == 0:
-        # Fallback: process at least 1 chord
-        chunk_size = max(1, total_chords)
-    else:
-        chunk_size = max(1, int(available_bytes / memory_per_chord))
-    
-    # Don't exceed total number of chords
-    chunk_size = min(chunk_size, total_chords)
-    
-    return chunk_size
+    chunk_size = max(1, int(available_bytes / memory_per_chord))
+    return min(chunk_size, total_chords)
 
 
 def chunk_array(
