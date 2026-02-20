@@ -25,6 +25,9 @@ from . import memoryHandler as memutil
 
 lineListPath: str = os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))) + '/Resources/LineList.txt'
+
+LINE_LIST = np.loadtxt(lineListPath, dtype=str,
+                              usecols=(0, 1, 2, 3, 4), skiprows=1)
 molecularLookupPath: str = os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))) + '/molecularResources/'
 
@@ -650,15 +653,13 @@ class AtmosphericConstituent:
                 - line_gamma (np.ndarray): Damping parameters (Gamma) of the lines.
                 - line_f (np.ndarray): Oscillator strengths (f-values) of the lines.
         """
-        lineList = np.loadtxt(lineListPath, dtype=str,
-                              usecols=(0, 1, 2, 3, 4), skiprows=1)
-        line_wavelength = np.array([x[1:-1] for x in lineList[:, 2]])
-        line_A = np.array([x[1:-1] for x in lineList[:, 3]])
-        line_f = np.array([x[1:-1] for x in lineList[:, 4]])
+        line_wavelength = np.array([x[1:-1] for x in LINE_LIST[:, 2]])
+        line_A = np.array([x[1:-1] for x in LINE_LIST[:, 3]])
+        line_f = np.array([x[1:-1] for x in LINE_LIST[:, 4]])
         SEL_COMPLETE = (line_wavelength != '') * \
             (line_A != '') * (line_f != '')
-        SEL_SPECIES = (lineList[:, 0] == self.species.element) * \
-            (lineList[:, 1] == self.species.ionizationState)
+        SEL_SPECIES = (LINE_LIST[:, 0] == self.species.element) * \
+            (LINE_LIST[:, 1] == self.species.ionizationState)
         line_wavelength = line_wavelength[SEL_SPECIES *
                                           SEL_COMPLETE].astype(float) * 1e-8
         line_gamma = line_A[SEL_SPECIES *
