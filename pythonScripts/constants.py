@@ -154,5 +154,9 @@ class AvailableSpecies(SpeciesCollection):
         FeI = Species('FeI', 'Fe', '1', 55.845 * amu)
         CoI = Species('CoI', 'Co', '1', 58.933 * amu)
         NiI = Species('NiI', 'Ni', '1', 58.6934 * amu)
+        OI = Species('OI', 'O', '1', 15.999 * amu)
+        CII = Species('CII', 'C', '2', 12.011 * amu)
+        SIII = Species('SIII', 'S', '3', 32.06 * amu)
+        SIV = Species('SIV', 'S', '4', 32.06 * amu)
 
-        self.speciesList: List[Species] = [NaI, KI, SiI, SiII, SiIII, SiIV, MgI, MgII, AlI, CaI, CaII, TiI, TiII, CrI, MnI, FeI, CoI, NiI]
+        self.speciesList: List[Species] = [NaI, KI, SiI, SiII, SiIII, SiIV, MgI, MgII, AlI, CaI, CaII, TiI, TiII, CrI, MnI, FeI, CoI, NiI, OI, CII, SIII, SIV]

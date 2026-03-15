@@ -3,17 +3,9 @@ from astroquery.nist import Nist
 
 # Configuration
 elements_mapping = {
-    "Al I": ("Al", 1),
-    "Ca I": ("Ca", 1),
-    "Ca II": ("Ca", 2),
-    "Ti I": ("Ti", 1),
-    "Ti II": ("Ti", 2),
-    "Cr I": ("Cr", 1),
-    "Mn I": ("Mn", 1),
-    "Fe I": ("Fe", 1),
-    "Co I": ("Co", 1),
-    "Ni I": ("Ni", 1),
-    
+    "C II": ("C", 2),
+    "S III": ("S", 3),
+    "Si IV": ("Si", 4),
 }
 output_filename = "New_LineList_Entries.txt"
 
@@ -23,7 +15,7 @@ with open(output_filename, "w") as f:
 
     for el_name, (sym, sp) in elements_mapping.items():
         print(f"Processing {el_name}...")
-        res = Nist.query(3300 * u.AA, 8000 * u.AA, linename=el_name, energy_level_unit='cm-1')
+        res = Nist.query(1000 * u.AA, 8000 * u.AA, linename=el_name, energy_level_unit='cm-1')
 
         row_count = 0
         for row in res:
