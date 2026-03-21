@@ -653,9 +653,9 @@ class AtmosphericConstituent:
                 - line_gamma (np.ndarray): Damping parameters (Gamma) of the lines.
                 - line_f (np.ndarray): Oscillator strengths (f-values) of the lines.
         """
-        line_wavelength = np.array([x[1:-1] for x in LINE_LIST[:, 2]])
-        line_A = np.array([x[1:-1] for x in LINE_LIST[:, 3]])
-        line_f = np.array([x[1:-1] for x in LINE_LIST[:, 4]])
+        line_wavelength = LINE_LIST[:, 2]
+        line_A = LINE_LIST[:, 3]
+        line_f = LINE_LIST[:, 4]
         SEL_COMPLETE = (line_wavelength != '') * \
             (line_A != '') * (line_f != '')
         SEL_SPECIES = (LINE_LIST[:, 0] == self.species.element) * \
