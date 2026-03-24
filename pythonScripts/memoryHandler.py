@@ -40,14 +40,16 @@ def estimate_chord_memory(
     # float64 = 8 bytes
     
     if is_molecular:
-        # We create P_3d (8), wav_3d (8), inputArray (24), and sigma_abs (8)
-        # Total is roughly 48 bytes per point in the (n_x * n_wav) grid
-        bytes_per_chord = n_x * num_wavelengths * 48
+        # Peak memory per chord in getSigmaAbs:
+        # PFlattened (8) + wavelengthFlattened (8) + TFlattened (8) +
+        # inputArray (24) + sigma_abs (8) + result (8) = ~64 bytes per point
+        # Plus the einsum output (n_wav * 8) is small in comparison
+        bytes_per_chord = n_x * num_wavelengths * 64
     else:
         # Atomic is much lighter
-        bytes_per_chord = num_wavelengths * 16 
-        
-    return int(bytes_per_chord * 1.5) # 50% buffer for python overhead
+        bytes_per_chord = num_wavelengths * 16
+
+    return int(bytes_per_chord * 2.0)  # 2x buffer for Python/NumPy overhead
 
 
 def calculate_optimal_chunk_size(

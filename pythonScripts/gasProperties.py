@@ -791,24 +791,29 @@ class MolecularConstituent:
         # P is (n_chords, n_x)
         n_chords, n_wav = wavelength.shape
         n_x = P.shape[1]
+        total_points = n_chords * n_x * n_wav
 
-        # 1. Broadcast P to (n_chords, n_x, n_wav)
-        # Add a new axis at the end and repeat it for every wavelength
-        P_3d = np.repeat(P[:, :, np.newaxis], n_wav, axis=2)
+        # Use broadcast views (no memory copy) then flatten via indices
+        # P needs shape (n_chords, n_x, n_wav) -> flatten
+        # wav needs shape (n_chords, n_x, n_wav) -> flatten
+        # Instead of np.repeat (which copies), use np.broadcast_to (zero-copy views)
+        P_view = np.broadcast_to(P[:, :, np.newaxis], (n_chords, n_x, n_wav))
+        wav_view = np.broadcast_to(wavelength[:, np.newaxis, :], (n_chords, n_x, n_wav))
 
-        # 2. Broadcast wavelength to (n_chords, n_x, n_wav)
-        # Add a new axis in the middle and repeat it for every spatial step x
-        wav_3d = np.repeat(wavelength[:, np.newaxis, :], n_x, axis=1)
+        # Reshape views to flat arrays — .reshape on broadcast arrays triggers a copy,
+        # but only one copy each instead of repeat + flatten (two copies)
+        PFlattened = np.clip(P_view.reshape(total_points), a_min=1e-4, a_max=None)
+        wavelengthFlattened = wav_view.reshape(total_points)
+        TFlattened = np.full(total_points, T)
 
-        wavelengthFlattened = wav_3d.flatten()
-        PFlattened = np.clip(P_3d.flatten(), a_min=1e-4, a_max=None)
-        TFlattened = np.full_like(wavelengthFlattened, T)
+        inputArray = np.column_stack([PFlattened, TFlattened, wavelengthFlattened])
 
-        # Now all arrays have the same length: (n_chords * n_x * n_wav)
-        inputArray = np.stack([PFlattened, TFlattened, wavelengthFlattened], axis=1)
-        
+        # Free intermediates before the lookup allocates more memory
+        del PFlattened, TFlattened, wavelengthFlattened
+
         sigma_absFlattened = 10**self.lookupFunction(inputArray) - self.lookupOffset
-        
+        del inputArray
+
         # Return as 3D array: (n_chords, n_x, n_wav)
         return sigma_absFlattened.reshape(n_chords, n_x, n_wav)
 
@@ -923,11 +928,12 @@ class Atmosphere:
                     # sigma is (n_chords, n_x, n_wav)
                     sigma = constituent.getSigmaAbs(P, dist_model.T, shifted_wav)
                     
-                    # Number density of absorber: (n_chords, n_x, 1) for broadcasting
-                    n_abs = (n_tot * constituent.chi)[:, :, np.newaxis]
-                    
-                    # Integrate: sum(n * sigma * dx) along axis 1 (the x-axis)
-                    total_tau += np.sum(n_abs * sigma, axis=1) * delta_x
+                    # Number density of absorber: (n_chords, n_x)
+                    n_abs = n_tot * constituent.chi
+
+                    # Integrate: sum(n * sigma * dx) along x-axis
+                    # Using einsum avoids creating a full (n_chords, n_x, n_wav) temporary
+                    total_tau += np.einsum('cx,cxw->cw', n_abs, sigma) * delta_x
                 else:
                     # Atoms: sigma only depends on wavelength, not local pressure
                     # Pre-calculating column density is fine here
