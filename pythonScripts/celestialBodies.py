@@ -507,9 +507,12 @@ class Moon:
         Returns:
             float: The orbital phase of the moon around its planet in radians.
         """
-        orbphase_moon = self.midTransitOrbphase + orbphase * \
-            np.sqrt((self.hostPlanet.a**3 * self.hostPlanet.M) /
-                    (self.a**3 * self.hostPlanet.hostStar.M))
+        a_p = np.float64(self.hostPlanet.a)
+        M_p = np.float64(self.hostPlanet.M)
+        a_m = np.float64(self.a)
+        M_s = np.float64(self.hostPlanet.hostStar.M)
+        period_ratio = np.sqrt((a_p**3 * M_p) / (a_m**3 * M_s))
+        orbphase_moon = self.midTransitOrbphase + np.float64(orbphase) * period_ratio
         return orbphase_moon
 
     def getPosition(self, orbphase: float) -> Tuple[float, float]:
