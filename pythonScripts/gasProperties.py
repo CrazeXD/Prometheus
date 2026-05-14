@@ -938,7 +938,19 @@ class Atmosphere:
                     # Atoms: sigma only depends on wavelength, not local pressure
                     # Pre-calculating column density is fine here
                     col_density = np.sum(n_tot * constituent.chi, axis=1) * delta_x
-                    sigma = constituent.getSigmaAbs(shifted_wav) # (n_chords, n_wav)
+                    unique_shifts, inverse = np.unique(shifts, return_inverse=True)
+                    cache_key = (
+                        unique_shifts.shape,
+                        unique_shifts.tobytes(),
+                        wavelength.shape,
+                        wavelength.tobytes(),
+                    )
+                    sigma_cache = getattr(constituent, "_batch_sigma_cache", {})
+                    if cache_key not in sigma_cache:
+                        unique_shifted_wav = unique_shifts[:, np.newaxis] * wavelength[np.newaxis, :]
+                        sigma_cache[cache_key] = constituent.getSigmaAbs(unique_shifted_wav)
+                        constituent._batch_sigma_cache = sigma_cache
+                    sigma = sigma_cache[cache_key][inverse]
                     total_tau += col_density[:, np.newaxis] * sigma
 
         return total_tau
@@ -1211,6 +1223,11 @@ class Transit:
 
             y_p = self.planet.a * np.sin(orb[idx])
             is_blocked = (np.sqrt((y[idx] - y_p)**2 + z[idx]**2) < self.planet.R)
+            for densityDistribution in self.atmosphere.densityDistributionList:
+                if densityDistribution.hasMoon:
+                    moon = densityDistribution.moon
+                    y_moon = moon.getPosition(orb[idx])[1]
+                    is_blocked |= ((y[idx] - y_moon)**2 + z[idx]**2 < moon.R**2)
             
             F_out = rho[idx, None] * F_star_batch
             F_in = np.zeros_like(F_out)
@@ -1223,7 +1240,19 @@ class Transit:
                 )
                 F_in[active] = F_out[active] * np.exp(-tau)
 
-            np.add.at(F_in_sum, orb_indices[idx], F_in)
-            np.add.at(F_out_sum, orb_indices[idx], F_out)
+            if batch_size == len(chordGrid):
+                F_in_sum = F_in.reshape(
+                    self.spatialGrid.phi_steps * self.spatialGrid.rho_steps,
+                    n_orb,
+                    n_wav,
+                ).sum(axis=0)
+                F_out_sum = F_out.reshape(
+                    self.spatialGrid.phi_steps * self.spatialGrid.rho_steps,
+                    n_orb,
+                    n_wav,
+                ).sum(axis=0)
+            else:
+                np.add.at(F_in_sum, orb_indices[idx], F_in)
+                np.add.at(F_out_sum, orb_indices[idx], F_out)
 
         return F_in_sum / F_out_sum

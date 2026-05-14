@@ -1,6 +1,6 @@
-# 🔥 Prometheus
+# Prometheus
 
-**Prometheus** is a Python-based radiative transfer forward model for simulating exoplanet transit spectroscopy. It computes wavelength-dependent transit depths across orbital phases for a variety of atmospheric and exospheric scenarios.
+PRObing Mass loss in Exoplanetary Transits with Hydrostatic, Evaporative and User-defined Scenarios. PROMETHEUS is a radiative transfer tool to compute lightcurves and transmission spectra of an object transiting its host star, typically an exoplanet. The code calculates the amount of absorption during the transit for gaseous media in arbitrary geometry. PROMETHEUS supports various density profiles beyond the canonical hydrostatic (barometric) law for dense atmospheres, such as the outgassed cloud of an exomoon or a circumplanetary torus. For these tenuous exospheres, line absorption by various atoms and ions is considered (with line lists from NIST). Additionally, it is possible to model absorption by molecules based on ExoMOL lookup tables.
 
 ---
 
